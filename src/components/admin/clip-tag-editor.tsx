@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { DeleteClipButton } from "@/components/admin/delete-clip-button";
 import { cdnUrl } from "@/lib/cdn";
 import { formatDuration } from "@/lib/dates";
 import { CLIP_STATUS_LABELS } from "@/lib/labels";
@@ -64,7 +65,10 @@ export function ClipTagEditor({
                   <span className="rounded-full bg-panel-2 px-2 py-0.5 text-xs text-muted">
                     {CLIP_STATUS_LABELS[clip.status]}
                   </span>
-                  <span className="text-xs text-muted">{formatDuration(clip.durationMs)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted">{formatDuration(clip.durationMs)}</span>
+                    <DeleteClipButton clipId={clip.id} />
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {tags.map((tag) => (

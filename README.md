@@ -11,7 +11,10 @@ phone / laptop
    │
    └─ admin (Auth0 session)
         │
-        ├─ CRUD APIs ── Neon
+        ├─ CRUD APIs ── Neon (venues, tags, games, clip tags)
+        ├─ PATCH /api/admin/games/:id ── venue, starts_at, type
+        ├─ DELETE /api/admin/games/:id ── S3 objects first, then game + clips + tag joins
+        ├─ DELETE /api/admin/clips/:id ── S3 objects first, then clip + tag joins
         └─ POST /api/admin/clips/presign
               │
               └─ browser PUT ── S3 uploads/{gameId}/{clipId}/…
@@ -38,7 +41,35 @@ S3 keys:
 | `playback/{gameId}/{clipId}/playback.mp4` | 1080-wide H.264 ~5 Mbps / 30 fps, faststart |
 | `posters/{gameId}/{clipId}/poster.jpg` | Still for the player |
 
-Vercel talks to AWS with `@vercel/functions/oidc` `awsCredentialsProvider`. The federated role can only `s3:PutObject` / abort or list multipart uploads on `uploads/*`.
+Vercel talks to AWS with `@vercel/functions/oidc` `awsCredentialsProvider`. The federated role `volleyball-clips-vercel-presign` can:
+
+- `s3:PutObject` / abort or list multipart uploads on `uploads/*` (presign)
+- `s3:DeleteObject` on `uploads/*`, `playback/*`, and `posters/*` (signed-in clip/game delete)
+
+It still cannot read objects, list the bucket, or touch Glacier.
+
+### S3 storage classes and lifecycle
+
+Configured on `VolleyballClipsStack` (not applied until you run `cdk deploy`):
+
+| Prefix | Storage | Lifecycle |
+| --- | --- | --- |
+| `uploads/` | Intelligent-Tiering | Transition at day 0 |
+| `playback/` | Intelligent-Tiering | Transition at day 0 |
+| `posters/` | Standard | No transition (leave as-is) |
+| *(bucket-wide)* | — | Abort incomplete multipart uploads after 7 days |
+
+Intelligent-Tiering Frequent/Infrequent Access stays instantly readable, so public full-res downloads (`uploads/*` via CloudFront) stay instant. The stack does **not** enable Intelligent-Tiering Archive Access or Deep Archive Access, and it does **not** transition to Glacier Flexible Retrieval or Glacier Deep Archive.
+
+### Signed-in edit and delete
+
+Any Auth0 session is an admin (`requireAdminApi` / `requireAdminPage`, same as the other `/api/admin/*` routes).
+
+- **Edit a game** on `/games/[id]` (signed-in panel) or `/admin/games/[id]/edit`: venue from the saved list, date/time, and type. `PATCH /api/admin/games/:id`.
+- **Delete a clip** on the public game feed (signed-in) or the admin tag editor: confirm dialog, then `DELETE /api/admin/clips/:id`.
+- **Delete a game and all its clips** on the public game page or admin game page: confirm dialog, then `DELETE /api/admin/games/:id`.
+
+Delete order: S3 objects first (original + conventional `playback/` and `posters/` keys), then `clip_tags`, then `clips`, then `games`. If any S3 delete fails, the API returns `502` and leaves the database rows in place so you can retry (S3 `DeleteObject` is idempotent, including missing keys).
 
 ## App setup
 
@@ -128,6 +159,14 @@ Useful context flags:
 
 The stack is `VolleyballClipsStack` in `us-east-2`. Every resource is tagged `project=volleyball-clips`.
 
+This repo does not run `cdk deploy` for you. After pull, from a machine with AWS credentials for the target account, deploy so the following CloudFormation updates land:
+
+1. **Media bucket lifecycle** — two prefix rules (`uploads/`, `playback/`) transitioning existing and new objects to `INTELLIGENT_TIERING` at day 0; one bucket-wide rule aborting incomplete multipart uploads after 7 days. `posters/` is unchanged (Standard). No `IntelligentTieringConfiguration` archive tiers, no Glacier classes.
+2. **IAM `volleyball-clips-vercel-presign`** — new statement `DeleteClipMedia`: `s3:DeleteObject` on `uploads/*`, `playback/*`, `posters/*`. Presign permissions are unchanged. The role description now mentions deletes.
+3. **Unchanged** — bucket name, CloudFront, Lambda, OIDC trust, SSM parameter name, stack outputs.
+
+Preview first with `cd infra && pnpm install && npx cdk diff` (same `-c` flags as deploy). App-only delete/edit APIs work only after that IAM statement is live; until then S3 deletes return `502` and DB rows stay.
+
 To validate the template without deploying:
 
 ```bash
@@ -175,7 +214,7 @@ The stack output `TRANSCODE_WEBHOOK_SECRET_PARAMETER` is that name. Do not put t
 - Framework: Next.js. Install command `pnpm install`, build `pnpm build`.
 - Enable OIDC (team issuer). Team slug: `focus-otters-projects`.
 - Set `AWS_REGION=us-east-2` yourself; do not rely on the platform default.
-- `AWS_ROLE_ARN` is the stack output. The trust policy allows `owner:focus-otters-projects:project:volleyball-clips:environment:*`.
+- `AWS_ROLE_ARN` is the stack output. The trust policy allows `owner:focus-otters-projects:project:volleyball-clips:environment:*`. After the IAM update above, that role can also delete clip objects; it still must not get `ssm:GetParameter` or `s3:GetObject`.
 - Set `TRANSCODE_WEBHOOK_SECRET` to the decrypted SSM SecureString. Do not grant the Vercel role `ssm:GetParameter`.
 
 ## Admin upload notes

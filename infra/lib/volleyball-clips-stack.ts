@@ -55,6 +55,35 @@ export class VolleyballClipsStack extends cdk.Stack {
           maxAge: 3600,
         },
       ],
+      // Instant public downloads: Intelligent-Tiering Frequent/Infrequent only.
+      // Do not add intelligentTieringConfigurations (Archive / Deep Archive Access).
+      // Posters stay in Standard (no prefix rule). No Glacier Flexible or Deep Archive.
+      lifecycleRules: [
+        {
+          id: "uploads-intelligent-tiering",
+          prefix: "uploads/",
+          transitions: [
+            {
+              storageClass: s3.StorageClass.INTELLIGENT_TIERING,
+              transitionAfter: cdk.Duration.days(0),
+            },
+          ],
+        },
+        {
+          id: "playback-intelligent-tiering",
+          prefix: "playback/",
+          transitions: [
+            {
+              storageClass: s3.StorageClass.INTELLIGENT_TIERING,
+              transitionAfter: cdk.Duration.days(0),
+            },
+          ],
+        },
+        {
+          id: "abort-incomplete-multipart-uploads",
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(7),
+        },
+      ],
     });
 
     const ffmpegLayer = new lambda.LayerVersion(this, "FfmpegLayer", {
@@ -182,7 +211,8 @@ export class VolleyballClipsStack extends cdk.Stack {
 
     const vercelRole = new iam.Role(this, "VercelPresignRole", {
       roleName: "volleyball-clips-vercel-presign",
-      description: "Vercel OIDC role limited to S3 presign uploads",
+      description:
+        "Vercel OIDC role for S3 presign uploads and clip/game object deletes",
       assumedBy: new iam.FederatedPrincipal(
         provider.openIdConnectProviderArn,
         {
@@ -206,6 +236,18 @@ export class VolleyballClipsStack extends cdk.Stack {
           "s3:ListMultipartUploadParts",
         ],
         resources: [bucket.arnForObjects("uploads/*")],
+      }),
+    );
+
+    vercelRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "DeleteClipMedia",
+        actions: ["s3:DeleteObject"],
+        resources: [
+          bucket.arnForObjects("uploads/*"),
+          bucket.arnForObjects("playback/*"),
+          bucket.arnForObjects("posters/*"),
+        ],
       }),
     );
 
