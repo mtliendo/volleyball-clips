@@ -45,7 +45,7 @@ Vercel talks to AWS with `@vercel/functions/oidc` `awsCredentialsProvider`. The 
 ```bash
 pnpm install
 cp .env.example .env.local
-# fill Neon + Auth0 + (after CDK deploy) stack outputs
+# fill Neon + Auth0 + stack outputs + SSM webhook secret
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
@@ -67,6 +67,7 @@ pnpm dev
 | `AUTH0_CLIENT_ID` | Auth0 Regular Web Application |
 | `AUTH0_CLIENT_SECRET` | Auth0 Regular Web Application |
 | `APP_TIMEZONE` | Optional. Defaults to `America/Chicago` |
+| `TRANSCODE_WEBHOOK_SECRET` | Decrypted value of the SSM SecureString `/volleyball-clips/transcode-webhook-secret` (see below). Not a CloudFormation output. |
 
 ### From `VolleyballClipsStack` outputs
 
@@ -78,7 +79,7 @@ Copy these CloudFormation outputs into Vercel (and `.env.local` after a deploy):
 | `AWS_S3_BUCKET` | Bucket name for presigned PUTs |
 | `AWS_ROLE_ARN` | Vercel OIDC role assumed by `awsCredentialsProvider` |
 | `NEXT_PUBLIC_CDN_URL` | `https://<cloudfront-domain>` for playback, posters, and original downloads |
-| `TRANSCODE_WEBHOOK_SECRET` | Shared HMAC for `POST /api/webhooks/transcode` |
+| `TRANSCODE_WEBHOOK_SECRET_PARAMETER` | Name of the SSM SecureString. Create it once, then put the decrypted value in `TRANSCODE_WEBHOOK_SECRET`. |
 
 Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of OIDC. Do not set those on Vercel.
 
@@ -135,11 +136,39 @@ pnpm install
 npx cdk synth
 ```
 
-After deploy, add the five stack outputs to the Vercel project. Redeploy the app so `NEXT_PUBLIC_CDN_URL` is baked in. Then add the production origin to `allowedOrigins` and redeploy the stack if you did not pass it the first time.
+After deploy, add the four AWS stack outputs to the Vercel project (`AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`). Create the webhook SecureString if you have not already (CloudFormation cannot), copy its value into `TRANSCODE_WEBHOOK_SECRET`, and redeploy the app so `NEXT_PUBLIC_CDN_URL` is baked in. Then add the production origin to `allowedOrigins` and redeploy the stack if you did not pass it the first time.
 
 If the AWS account already has `oidc.vercel.com/focus-otters-projects`, pass `vercelOidcProviderArn` instead of creating a second provider.
 
 The Lambda is 10 GB RAM, 15 minute timeout, 5 GB ephemeral disk, Node.js 22 + ffmpeg layer. That is sized for ~2 minute HEVC sources (1552×2064, ~15 Mbps, sometimes 120 fps). Output is 1080-wide H.264 at ~5 Mbps / 30 fps with `+faststart`, plus a poster JPG.
+
+## Transcode webhook secret (SSM)
+
+CloudFormation cannot create an SSM `SecureString`. Create the parameter once in `us-east-2` (before the first upload). The transcode Lambda reads it with `ssm:GetParameter` (`WithDecryption`); that is the only extra IAM action on the function.
+
+```bash
+SECRET="$(openssl rand -hex 32)"
+aws ssm put-parameter \
+  --name /volleyball-clips/transcode-webhook-secret \
+  --description "HMAC secret for volleyball-clips transcode webhook" \
+  --type SecureString \
+  --value "$SECRET" \
+  --region us-east-2
+# set TRANSCODE_WEBHOOK_SECRET to the same $SECRET in Vercel and .env.local
+```
+
+If the parameter already exists and you need the value for the app:
+
+```bash
+aws ssm get-parameter \
+  --name /volleyball-clips/transcode-webhook-secret \
+  --with-decryption \
+  --query Parameter.Value \
+  --output text \
+  --region us-east-2
+```
+
+The stack output `TRANSCODE_WEBHOOK_SECRET_PARAMETER` is that name. Do not put the decrypted secret in CloudFormation.
 
 ## Vercel
 
@@ -147,6 +176,7 @@ The Lambda is 10 GB RAM, 15 minute timeout, 5 GB ephemeral disk, Node.js 22 + ff
 - Enable OIDC (team issuer). Team slug: `focus-otters-projects`.
 - Set `AWS_REGION=us-east-2` yourself; do not rely on the platform default.
 - `AWS_ROLE_ARN` is the stack output. The trust policy allows `owner:focus-otters-projects:project:volleyball-clips:environment:*`.
+- Set `TRANSCODE_WEBHOOK_SECRET` to the decrypted SSM SecureString. Do not grant the Vercel role `ssm:GetParameter`.
 
 ## Admin upload notes
 

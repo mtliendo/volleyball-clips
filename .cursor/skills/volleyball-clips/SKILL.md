@@ -28,7 +28,7 @@ Calendar grouping uses `APP_TIMEZONE` (default `America/Chicago`).
 
 Sign-ups are disabled in Auth0. Do not invent roles. `requireAdminPage` / `requireAdminApi` in `src/lib/admin.ts` check for a session on every admin page and `/api/admin/*` route. `src/proxy.ts` also gates those paths.
 
-Public pages and `POST /api/webhooks/transcode` stay anonymous. The webhook is HMAC-verified with `TRANSCODE_WEBHOOK_SECRET` (`x-webhook-signature: sha256=...`).
+Public pages and `POST /api/webhooks/transcode` stay anonymous. The webhook is HMAC-verified with `TRANSCODE_WEBHOOK_SECRET` (`x-webhook-signature: sha256=...`). That env var is the decrypted SSM SecureString `/volleyball-clips/transcode-webhook-secret` (create once with `aws ssm put-parameter --type SecureString`). The Lambda reads the same parameter with `ssm:GetParameter` (`WithDecryption`).
 
 ## Upload path
 
@@ -63,7 +63,7 @@ pnpm exec cdk deploy -c webhookUrl=https://<app-host>/api/webhooks/transcode -c 
 
 If the account already has `https://oidc.vercel.com/focus-otters-projects`, pass `-c vercelOidcProviderArn=arn:aws:iam::<account>:oidc-provider/oidc.vercel.com/focus-otters-projects`.
 
-Stack outputs the app needs: `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, `TRANSCODE_WEBHOOK_SECRET`.
+Stack outputs the app needs: `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, plus `TRANSCODE_WEBHOOK_SECRET_PARAMETER` (the SSM name). Set app env `TRANSCODE_WEBHOOK_SECRET` from that parameter's decrypted value, not from Secrets Manager.
 
 ## Schema changes
 

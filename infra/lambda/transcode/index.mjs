@@ -6,21 +6,47 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 const execFileAsync = promisify(execFile);
 const s3 = new S3Client({});
+const ssm = new SSMClient({});
+let cachedWebhookSecret;
 
 function sign(body, secret) {
   return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
+async function getWebhookSecret() {
+  if (cachedWebhookSecret) {
+    return cachedWebhookSecret;
+  }
+
+  const name = process.env.WEBHOOK_SECRET_PARAMETER;
+  if (!name) {
+    throw new Error("WEBHOOK_SECRET_PARAMETER is not set");
+  }
+
+  const result = await ssm.send(
+    new GetParameterCommand({ Name: name, WithDecryption: true }),
+  );
+  const value = result.Parameter?.Value;
+  if (!value) {
+    throw new Error(`SSM parameter ${name} has no value`);
+  }
+
+  cachedWebhookSecret = value;
+  return cachedWebhookSecret;
+}
+
 async function postWebhook(payload) {
   const body = JSON.stringify(payload);
+  const secret = await getWebhookSecret();
   const response = await fetch(process.env.WEBHOOK_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-webhook-signature": sign(body, process.env.WEBHOOK_SECRET),
+      "x-webhook-signature": sign(body, secret),
     },
     body,
   });

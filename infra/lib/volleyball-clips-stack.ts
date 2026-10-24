@@ -6,8 +6,11 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
+
+/** Create once: `aws ssm put-parameter --name … --type SecureString`. CloudFormation cannot. */
+export const TRANSCODE_WEBHOOK_SECRET_PARAMETER =
+  "/volleyball-clips/transcode-webhook-secret";
 
 export class VolleyballClipsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -54,14 +57,6 @@ export class VolleyballClipsStack extends cdk.Stack {
       ],
     });
 
-    const webhookSecret = new secretsmanager.Secret(this, "WebhookSecret", {
-      description: "Shared HMAC secret for the volleyball-clips transcode webhook",
-      generateSecretString: {
-        passwordLength: 48,
-        excludePunctuation: true,
-      },
-    });
-
     const ffmpegLayer = new lambda.LayerVersion(this, "FfmpegLayer", {
       description: "Static ffmpeg and ffprobe binaries",
       compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
@@ -82,10 +77,24 @@ export class VolleyballClipsStack extends cdk.Stack {
         PATH: "/opt/bin:/var/lang/bin:/usr/local/bin:/usr/bin:/bin",
         BUCKET: bucket.bucketName,
         WEBHOOK_URL: webhookUrl,
-        WEBHOOK_SECRET: webhookSecret.secretValue.unsafeUnwrap(),
+        WEBHOOK_SECRET_PARAMETER: TRANSCODE_WEBHOOK_SECRET_PARAMETER,
       },
       description: "Transcode Meta-glasses volleyball clips to 1080-wide H.264 + poster",
     });
+
+    transcodeFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ReadWebhookSecret",
+        actions: ["ssm:GetParameter"],
+        resources: [
+          cdk.Stack.of(this).formatArn({
+            service: "ssm",
+            resource: "parameter",
+            resourceName: TRANSCODE_WEBHOOK_SECRET_PARAMETER.slice(1),
+          }),
+        ],
+      }),
+    );
 
     bucket.grantRead(transcodeFn, "uploads/*");
     bucket.grantWrite(transcodeFn, "playback/*");
@@ -213,8 +222,10 @@ export class VolleyballClipsStack extends cdk.Stack {
     new cdk.CfnOutput(this, "NEXT_PUBLIC_CDN_URL", {
       value: `https://${distribution.distributionDomainName}`,
     });
-    new cdk.CfnOutput(this, "TRANSCODE_WEBHOOK_SECRET", {
-      value: webhookSecret.secretValue.unsafeUnwrap(),
+    new cdk.CfnOutput(this, "TRANSCODE_WEBHOOK_SECRET_PARAMETER", {
+      value: TRANSCODE_WEBHOOK_SECRET_PARAMETER,
+      description:
+        "SSM SecureString name. Create it once, then copy the decrypted value into TRANSCODE_WEBHOOK_SECRET",
     });
   }
 }
