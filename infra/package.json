@@ -1,0 +1,21 @@
+{
+  "name": "volleyball-clips-infra",
+  "private": true,
+  "scripts": {
+    "prepare-ffmpeg": "bash scripts/prepare-ffmpeg-layer.sh",
+    "build": "tsc --noEmit",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "bash scripts/prepare-ffmpeg-layer.sh && cdk deploy --all"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.236.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "aws-cdk": "^2.1108.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
