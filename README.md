@@ -51,7 +51,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-`pnpm db:migrate` must use the **unpooled** Neon URL (`DATABASE_URL_UNPOOLED`). The app itself uses the pooled `DATABASE_URL`.
+`pnpm db:migrate` must use the **unpooled** Neon URL (`DATABASE_URL_UNPOOLED`). The app itself uses the pooled `DATABASE_URL`. The first migration also inserts the seed tags; `pnpm db:seed` is idempotent and safe to re-run.
 
 ## Environment variables
 
@@ -86,7 +86,7 @@ Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of O
 
 1. Create a project (region close to `us-east-2` is fine).
 2. Copy the pooled and direct connection strings into `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
-3. Run `pnpm db:migrate` then `pnpm db:seed` so the tag list exists (`spike`, `block`, `dig`, `ace`, `set`, `save`, `rally`).
+3. Run `pnpm db:migrate` (creates tables and inserts the seed tags: `spike`, `block`, `dig`, `ace`, `set`, `save`, `rally`). Optionally re-run `pnpm db:seed` later; it is idempotent.
 4. Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle/`, migrate.
 
 ## Auth0
@@ -126,6 +126,14 @@ Useful context flags:
 | `vercelOidcProviderArn` | unset (create provider) | Import an existing Vercel OIDC provider |
 
 The stack is `VolleyballClipsStack` in `us-east-2`. Every resource is tagged `project=volleyball-clips`.
+
+To validate the template without deploying:
+
+```bash
+cd infra
+pnpm install
+npx cdk synth
+```
 
 After deploy, add the five stack outputs to the Vercel project. Redeploy the app so `NEXT_PUBLIC_CDN_URL` is baked in. Then add the production origin to `allowedOrigins` and redeploy the stack if you did not pass it the first time.
 

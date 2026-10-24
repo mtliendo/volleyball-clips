@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { ClipFeed } from "@/components/clip-feed";
 import { formatGameWhen } from "@/lib/dates";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
@@ -11,6 +12,7 @@ export default async function GamePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  await connection();
   const game = await getGameWithVenue(id);
   if (!game) {
     notFound();

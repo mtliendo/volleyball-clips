@@ -5,6 +5,7 @@ import { getDb } from "./db";
 import { clipTags, clips, games, tags, venues } from "./db/schema";
 import { isDatabaseConfigured } from "./env";
 import { monthRange } from "./dates";
+import { isUuid } from "./ids";
 
 export type PublicGame = {
   id: string;
@@ -75,7 +76,7 @@ export async function listMonthGames(yearMonth: Date): Promise<PublicGame[]> {
 }
 
 export async function getGameWithVenue(gameId: string) {
-  if (!isDatabaseConfigured()) return null;
+  if (!isDatabaseConfigured() || !isUuid(gameId)) return null;
 
   const [row] = await getDb()
     .select({
