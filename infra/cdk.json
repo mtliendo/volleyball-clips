@@ -1,0 +1,13 @@
+{
+  "app": "npx ts-node --prefer-ts-exts bin/app.ts",
+  "watch": {
+    "include": ["**"],
+    "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "**/*.js", "tsconfig.json", "package*.json", "node_modules", "cdk.out"]
+  },
+  "context": {
+    "vercelTeamSlug": "focus-otters-projects",
+    "vercelProjectName": "volleyball-clips",
+    "allowedOrigins": "http://localhost:3000",
+    "webhookUrl": "https://REPLACE_ME.vercel.app/api/webhooks/transcode"
+  }
+}

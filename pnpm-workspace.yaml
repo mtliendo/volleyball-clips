@@ -1,0 +1,7 @@
+packages:
+  - .
+  - infra
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
