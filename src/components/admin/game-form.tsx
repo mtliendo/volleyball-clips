@@ -9,6 +9,7 @@ const TYPES = ["open_gym", "league", "tournament"] as const;
 export function GameForm({
   venues,
   game,
+  successHref,
 }: {
   venues: { id: string; name: string }[];
   game?: {
@@ -17,6 +18,7 @@ export function GameForm({
     startsAtLocal: string;
     type: (typeof TYPES)[number];
   };
+  successHref?: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -49,7 +51,7 @@ export function GameForm({
       return;
     }
 
-    router.push(`/admin/games/${data.id}`);
+    router.push(successHref ?? `/admin/games/${data.id}`);
     router.refresh();
   }
 

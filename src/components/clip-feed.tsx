@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { DeleteClipButton } from "@/components/admin/delete-clip-button";
 import { cdnUrl } from "@/lib/cdn";
 import { formatDuration } from "@/lib/dates";
 import type { PublicClip } from "@/lib/queries";
@@ -8,9 +9,11 @@ import type { PublicClip } from "@/lib/queries";
 export function ClipFeed({
   clips,
   tags,
+  canManage = false,
 }: {
   clips: PublicClip[];
   tags: { id: string; slug: string; name: string }[];
+  canManage?: boolean;
 }) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
@@ -106,14 +109,17 @@ export function ClipFeed({
                       ))
                     )}
                   </div>
-                  {original ? (
-                    <a
-                      href={original}
-                      className="shrink-0 rounded-full bg-court px-3 py-1.5 text-xs font-medium text-background"
-                    >
-                      Download
-                    </a>
-                  ) : null}
+                  <div className="flex shrink-0 items-center gap-3">
+                    {canManage ? <DeleteClipButton clipId={clip.id} /> : null}
+                    {original ? (
+                      <a
+                        href={original}
+                        className="rounded-full bg-court px-3 py-1.5 text-xs font-medium text-background"
+                      >
+                        Download
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
               </li>
             );

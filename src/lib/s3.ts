@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { awsCredentialsProvider } from "@vercel/functions/oidc";
 import {
@@ -103,4 +103,70 @@ export async function presignPut(input: {
   });
 
   return getSignedUrl(client, command, { expiresIn: PRESIGN_EXPIRES_SECONDS });
+}
+
+export type ClipMediaKeys = {
+  id: string;
+  gameId: string;
+  originalKey: string;
+  playbackKey?: string | null;
+  posterKey?: string | null;
+};
+
+export function clipObjectKeys(clip: ClipMediaKeys) {
+  const keys = new Set<string>();
+  if (clip.originalKey) keys.add(clip.originalKey);
+  keys.add(playbackKey(clip.gameId, clip.id));
+  keys.add(posterKey(clip.gameId, clip.id));
+  if (clip.playbackKey) keys.add(clip.playbackKey);
+  if (clip.posterKey) keys.add(clip.posterKey);
+  return [...keys];
+}
+
+const IGNORABLE_DELETE_CODES = new Set(["NoSuchKey", "NotFound"]);
+
+export async function deleteObjects(keys: string[]) {
+  const unique = [...new Set(keys.filter(Boolean))];
+  if (unique.length === 0) {
+    return { deleted: [] as string[], failed: [] as { key: string; message: string }[] };
+  }
+
+  const client = createS3Client();
+  const bucket = getBucket();
+  const deleted: string[] = [];
+  const failed: { key: string; message: string }[] = [];
+
+  for (let i = 0; i < unique.length; i += 1000) {
+    const chunk = unique.slice(i, i + 1000);
+    const result = await client.send(
+      new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: {
+          Objects: chunk.map((Key) => ({ Key })),
+          Quiet: false,
+        },
+      }),
+    );
+
+    for (const obj of result.Deleted ?? []) {
+      if (obj.Key) deleted.push(obj.Key);
+    }
+
+    for (const err of result.Errors ?? []) {
+      if (err.Code && IGNORABLE_DELETE_CODES.has(err.Code)) {
+        if (err.Key) deleted.push(err.Key);
+        continue;
+      }
+      failed.push({
+        key: err.Key ?? "",
+        message: err.Message ?? err.Code ?? "Delete failed",
+      });
+    }
+  }
+
+  return { deleted, failed };
+}
+
+export async function deleteClipObjects(clipsToDelete: ClipMediaKeys[]) {
+  return deleteObjects(clipsToDelete.flatMap(clipObjectKeys));
 }

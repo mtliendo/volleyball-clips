@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClipTagEditor } from "@/components/admin/clip-tag-editor";
 import { ClipUploader } from "@/components/admin/clip-uploader";
+import { DeleteGameButton } from "@/components/admin/delete-game-button";
 import { requireAdminPage } from "@/lib/admin";
 import { formatGameWhen } from "@/lib/dates";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
@@ -31,9 +32,12 @@ export default async function AdminGamePage({
           <h1 className="display text-4xl">{game.venueName}</h1>
           <p className="mt-1 text-sm text-muted">{formatGameWhen(game.startsAt)}</p>
         </div>
-        <Link href={`/admin/games/${id}/edit`} className="text-sm text-muted">
-          Edit
-        </Link>
+        <div className="flex flex-col items-end gap-2">
+          <Link href={`/admin/games/${id}/edit`} className="text-sm text-muted">
+            Edit
+          </Link>
+          <DeleteGameButton gameId={id} label={game.venueName} href="/admin/games" />
+        </div>
       </div>
       <ClipUploader gameId={id} />
       <section className="space-y-3">
