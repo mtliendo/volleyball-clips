@@ -8,6 +8,8 @@ import {
   downloadEvents,
   watchEvents,
 } from "./db/schema";
+import { ANALYTICS_EVENTS } from "./analytics-events";
+import { trackServerEvent } from "./analytics-server";
 import { recentDownloadWindowMs } from "./download";
 import { isDatabaseConfigured } from "./env";
 
@@ -72,6 +74,10 @@ export async function recordDownload(input: {
     return false;
   }
   await getDb().insert(downloadEvents).values(input);
+  trackServerEvent(ANALYTICS_EVENTS.downloadSuccess, {
+    quality: input.quality,
+    tier: input.quality === "original" ? "pro" : "free",
+  });
   return true;
 }
 

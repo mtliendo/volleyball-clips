@@ -1,8 +1,27 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { VerticalFeed } from "@/components/vertical-feed";
 import { getViewer } from "@/lib/entitlements";
 import { getGameWithVenue, listGameClips, listTags } from "@/lib/queries";
+import { clipPageMetadata, getClipShare } from "@/lib/share-metadata";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string; clipId: string }>;
+}): Promise<Metadata> {
+  const { id, clipId } = await params;
+  const share = await getClipShare(id, clipId);
+  if (!share) {
+    return {
+      title: "Clip",
+      openGraph: { title: "Clip" },
+      twitter: { title: "Clip" },
+    };
+  }
+  return clipPageMetadata(share);
+}
 
 export default async function WatchPage({
   params,

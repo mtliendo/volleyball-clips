@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { GuestAuthNav } from "@/components/guest-auth-nav";
+import { TrackLink } from "@/components/track-click";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { getSession, isAdmin } from "@/lib/admin";
-import { authLoginHref } from "@/lib/auth-urls";
 import { isAuth0Configured } from "@/lib/env";
 
 export async function SiteHeader() {
@@ -15,9 +17,9 @@ export async function SiteHeader() {
           VB POV
         </Link>
         <nav className="flex items-center gap-3 text-sm">
-          <Link href="/pricing" className="text-muted hover:text-ink">
+          <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="text-muted hover:text-ink">
             Pricing
-          </Link>
+          </TrackLink>
           {session ? (
             <>
               <Link href="/favorites" className="text-muted hover:text-ink">
@@ -33,14 +35,7 @@ export async function SiteHeader() {
               </a>
             </>
           ) : authReady ? (
-            <>
-              <a href={authLoginHref({ returnTo: "/" })} className="text-muted hover:text-ink">
-                Sign in
-              </a>
-              <a href={authLoginHref({ returnTo: "/", signup: true })} className="btn btn-primary !min-h-9 !px-3">
-                Create account
-              </a>
-            </>
+            <GuestAuthNav />
           ) : null}
         </nav>
       </div>

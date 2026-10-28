@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -7,6 +8,24 @@ import { formatGameWhen, toDatetimeLocalValue } from "@/lib/dates";
 import { getViewer } from "@/lib/entitlements";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
 import { getGameWithVenue, listGameClips, listTags, listVenues } from "@/lib/queries";
+import { getSessionShare, sessionPageMetadata } from "@/lib/share-metadata";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const share = await getSessionShare(id);
+  if (!share) {
+    return {
+      title: "Session",
+      openGraph: { title: "Session" },
+      twitter: { title: "Session" },
+    };
+  }
+  return sessionPageMetadata(share);
+}
 
 export default async function GamePage({
   params,
