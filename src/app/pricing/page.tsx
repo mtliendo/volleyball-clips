@@ -1,6 +1,25 @@
+import type { Metadata } from "next";
 import { CheckoutButton, PortalButton } from "@/components/billing-buttons";
+import { TrackAnchor } from "@/components/track-click";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
+import { trackServerEvent } from "@/lib/analytics-server";
 import { authLoginHref } from "@/lib/auth-urls";
 import { getViewer } from "@/lib/entitlements";
+
+export const metadata: Metadata = {
+  title: "Pricing",
+  description: "Watch for free. Pay if you want the original files from the glasses.",
+  openGraph: {
+    title: "Pricing",
+    description: "Watch for free. Pay if you want the original files from the glasses.",
+    url: "https://vbpov.com/pricing",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pricing",
+    description: "Watch for free. Pay if you want the original files from the glasses.",
+  },
+};
 
 export default async function PricingPage({
   searchParams,
@@ -8,6 +27,9 @@ export default async function PricingPage({
   searchParams: Promise<{ checkout?: string }>;
 }) {
   const { checkout } = await searchParams;
+  if (checkout === "success") {
+    trackServerEvent(ANALYTICS_EVENTS.checkoutSuccess);
+  }
   const viewer = await getViewer();
 
   return (
@@ -45,9 +67,13 @@ export default async function PricingPage({
           {viewer.signedIn ? (
             <p className="meta">You are signed in.</p>
           ) : (
-            <a href={authLoginHref({ returnTo: "/pricing", signup: true })} className="btn btn-primary mt-auto">
+            <TrackAnchor
+              href={authLoginHref({ returnTo: "/pricing", signup: true })}
+              event={ANALYTICS_EVENTS.signupClick}
+              className="btn btn-primary mt-auto"
+            >
               Make a free account
-            </a>
+            </TrackAnchor>
           )}
         </li>
         <li className="flex flex-col gap-4 rounded-card bg-accent p-6 text-accent-ink lg:min-h-full">

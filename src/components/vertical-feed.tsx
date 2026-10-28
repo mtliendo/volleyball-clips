@@ -7,7 +7,9 @@ import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
 import { FeedTagSheet, type CatalogTag } from "@/components/feed-tag-sheet";
 import { SignupWall } from "@/components/signup-wall";
+import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { cdnUrl } from "@/lib/cdn";
+import { mergeUtmIntoPath } from "@/lib/utm";
 import type { PinLabel } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/entitlements";
 import { PIN_LABEL_COPY } from "@/lib/labels";
@@ -15,6 +17,7 @@ import type { ClipPin, PublicClip } from "@/lib/queries";
 
 const SOUND_KEY = "vbpov-sound";
 const PRELOAD_WINDOW = 1;
+const CLIP_VIEW_THROTTLE_MS = 500;
 
 function writeSoundPref(on: boolean) {
   try {
@@ -229,7 +232,10 @@ export function VerticalFeed({
   const syncUrl = useCallback(
     (clipId: string) => {
       const query = tag ? `?tag=${encodeURIComponent(tag)}` : "";
-      const next = `/games/${gameId}/watch/${clipId}${query}`;
+      const next = mergeUtmIntoPath(
+        `/games/${gameId}/watch/${clipId}${query}`,
+        window.location.search,
+      );
       const current = `${window.location.pathname}${window.location.search}`;
       if (current !== next) {
         window.history.replaceState(window.history.state, "", next);
@@ -352,6 +358,26 @@ export function VerticalFeed({
       cancelled = true;
     };
   }, [active, viewer.watchUnlimited]);
+
+  const lastClipView = useRef({ id: "", at: 0 });
+  useEffect(() => {
+    if (!active) return;
+    const clipId = active.id;
+    if (clipId === lastClipView.current.id) return;
+
+    const fire = () => {
+      lastClipView.current = { id: clipId, at: Date.now() };
+      trackEvent(ANALYTICS_EVENTS.clipView, { clip_id: clipId, game_id: gameId });
+    };
+
+    const wait = Math.max(0, CLIP_VIEW_THROTTLE_MS - (Date.now() - lastClipView.current.at));
+    if (wait === 0) {
+      fire();
+      return;
+    }
+    const timer = window.setTimeout(fire, wait);
+    return () => window.clearTimeout(timer);
+  }, [active, gameId]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

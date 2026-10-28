@@ -1,8 +1,10 @@
 import { TZDate } from "@date-fns/tz";
 import Link from "next/link";
 import { connection } from "next/server";
+import { TrackLink } from "@/components/track-click";
 import { GameList } from "@/components/game-list";
 import { MonthCalendar } from "@/components/month-calendar";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { cdnUrl } from "@/lib/cdn";
 import { APP_TIMEZONE, dayKey, formatGameDay, parseYearMonth } from "@/lib/dates";
 import { listMonthGames, listRecentReadyPosters } from "@/lib/queries";
@@ -60,9 +62,9 @@ export default async function HomePage({
             <a href="#nights" className="btn btn-primary">
               Open a night
             </a>
-            <Link href="/pricing" className="btn btn-ghost">
+            <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="btn btn-ghost">
               Pricing
-            </Link>
+            </TrackLink>
           </div>
         </div>
       </section>

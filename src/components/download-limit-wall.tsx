@@ -1,6 +1,7 @@
 "use client";
 
-import Link from "next/link";
+import { TrackLink } from "@/components/track-click";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { formatNextDownloadWhen } from "@/lib/dates";
 
 export function DownloadLimitWall({
@@ -21,9 +22,9 @@ export function DownloadLimitWall({
         </p>
         {when ? <p className="meta">Another one frees up {when}.</p> : null}
         <div className="flex flex-col gap-2">
-          <Link href="/pricing" className="btn btn-primary">
+          <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="btn btn-primary">
             Go Pro, $5 a month
-          </Link>
+          </TrackLink>
           <button type="button" className="btn btn-ghost" onClick={() => onBack?.()}>
             Back to the clip
           </button>

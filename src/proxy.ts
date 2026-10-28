@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
     }
 
     const login = new URL("/auth/login", request.url);
-    login.searchParams.set("returnTo", pathname);
+    login.searchParams.set("returnTo", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(login);
   }
 
@@ -46,6 +46,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon(?:$|\\.)|apple-icon|manifest.webmanifest|robots.txt|sitemap.xml|.*opengraph-image).*)",
   ],
 };

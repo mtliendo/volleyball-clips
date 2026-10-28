@@ -270,6 +270,40 @@ The stack output `TRANSCODE_WEBHOOK_SECRET_PARAMETER` is that name. Do not put t
 - Add the Stripe test vars when you have them. The preview will boot without them.
 - Add the production origin to Auth0 callbacks and to `allowedOrigins` on the stack.
 
+## Analytics
+
+The root layout loads [`@vercel/analytics`](https://vercel.com/docs/analytics) and [`@vercel/speed-insights`](https://vercel.com/docs/speed-insights).
+
+**Turn them on in the Vercel dashboard** (Hobby can do this):
+
+1. Project → **Analytics** → Enable. After the next deploy, page views show under Analytics.
+2. Project → **Speed Insights** → Enable. Web Vitals show there.
+
+This project stays on **Hobby**. Page views work on Hobby. Custom `track()` events **only appear on the Pro plan** (Analytics → custom events). The calls are already in the app so they light up if the plan changes. They are fire-and-forget: nothing in the product waits on them, and a failed or ignored call on Hobby does not error.
+
+| Event | When | Where |
+| --- | --- | --- |
+| `clip_view` | Active clip in the feed changes (throttled). Props: `clip_id`, `game_id` | Client |
+| `favorite` | Heart succeeds. Prop: `clip_id` | Client |
+| `download_success` | A new row is written to `download_events`. Props: `quality`, `tier` | Server |
+| `download_limit_hit` | Free weekly cap, from the download button | Client |
+| `watch_limit_hit` | Guest hits the 7-a-day wall | Server |
+| `signup_click` | Create-account / sign-in-to-favorite / sign-in-to-download | Client |
+| `sign_in_click` | Sign in | Client |
+| `go_pro_click` | Pricing links and Pay $5 | Client |
+| `checkout_started` | Stripe Checkout URL is in hand | Client |
+| `checkout_success` | `/pricing?checkout=success` | Server |
+
+**Hobby source of truth** (already in Neon, no Vercel plan needed):
+
+- `watch_events` — guest clip views and the 7-a-day wall
+- `download_events` — downloads (`quality` is `playback` or `original`)
+- `users.subscription_status` (plus `current_period_end`) — Pro / checkout state from Stripe webhooks
+
+Facebook gym links should keep `?utm_source=facebook&utm_campaign=<gym>` on the first page. Auth returnTo and in-feed URL updates copy `utm_*` so a later sign-in does not drop them. Vercel records those query params on the landing page view. UTM **breakdowns** in the dashboard need Web Analytics Plus; the raw landing URL still has them.
+
+Share previews: `metadataBase` is `https://vbpov.com`. Session and clip pages expose Open Graph + Twitter tags (and a 1200×630 `opengraph-image`) without auth. The 7-a-day wall is client-side after `/api/watch`; Facebook’s crawler reads the HTML head.
+
 ## Admin upload notes
 
 On a phone, the admin session page’s file input opens the camera roll (`accept="video/*"`, `multiple`). Files upload in parallel (3 at a time). Tag and pin clips on the same page.

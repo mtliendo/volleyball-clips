@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
+import { TrackAnchor } from "@/components/track-click";
+import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { authLoginHref } from "@/lib/auth-urls";
 import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/lib/download";
 
@@ -37,14 +39,15 @@ export function DownloadButton({
 
   if (!canDownload) {
     return (
-      <a
+      <TrackAnchor
         href={authLoginHref({ returnTo, signup: true })}
+        event={ANALYTICS_EVENTS.signupClick}
         className={compact ? "icon-btn" : "btn btn-ghost"}
         data-download-control=""
         data-clip-id={clipId}
       >
         {compact ? <DownloadIcon /> : "Sign in to download"}
-      </a>
+      </TrackAnchor>
     );
   }
 
@@ -57,6 +60,7 @@ export function DownloadButton({
   }
 
   function showLimit(nextAt: string | null = nextDownloadAt) {
+    trackEvent(ANALYTICS_EVENTS.downloadLimitHit);
     const at = nextAt ?? nextDownloadAt ?? null;
     setLimitNextAt(at);
     if (onLimit) {

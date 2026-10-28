@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
+import { trackServerEvent } from "@/lib/analytics-server";
 import { getSession } from "@/lib/admin";
 import { ANON_WATCH_LIMIT } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
@@ -37,6 +39,7 @@ export async function POST(request: Request) {
   const remaining = remainingFromCounts(counts.visitorCount, counts.ipCount);
 
   if (!already && remaining <= 0) {
+    trackServerEvent(ANALYTICS_EVENTS.watchLimitHit, { clip_id: clip.id });
     const response = NextResponse.json(
       {
         allowed: false,

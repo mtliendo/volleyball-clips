@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { TrackAnchor } from "@/components/track-click";
+import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { authLoginHref } from "@/lib/auth-urls";
 
 export function CheckoutButton({
@@ -17,9 +19,13 @@ export function CheckoutButton({
 
   if (!signedIn) {
     return (
-      <a href={authLoginHref({ returnTo: "/pricing", signup: true })} className="btn btn-spark w-full">
+      <TrackAnchor
+        href={authLoginHref({ returnTo: "/pricing", signup: true })}
+        event={ANALYTICS_EVENTS.signupClick}
+        className="btn btn-spark w-full"
+      >
         Make a free account first
-      </a>
+      </TrackAnchor>
     );
   }
 
@@ -38,6 +44,7 @@ export function CheckoutButton({
   async function start() {
     setPending(true);
     setError("");
+    trackEvent(ANALYTICS_EVENTS.goProClick);
     const response = await fetch("/api/stripe/checkout", { method: "POST" });
     const data = (await response.json().catch(() => ({}))) as { url?: string; error?: string };
     if (!response.ok || !data.url) {
@@ -45,6 +52,7 @@ export function CheckoutButton({
       setPending(false);
       return;
     }
+    trackEvent(ANALYTICS_EVENTS.checkoutStarted);
     window.location.href = data.url;
   }
 

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TrackAnchor } from "@/components/track-click";
+import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { authLoginHref } from "@/lib/auth-urls";
 
 export function FavoriteButton({
@@ -25,15 +27,16 @@ export function FavoriteButton({
 
   if (!canFavorite) {
     return (
-      <a
+      <TrackAnchor
         href={authLoginHref({ returnTo, signup: true })}
+        event={ANALYTICS_EVENTS.signupClick}
         className="icon-btn"
         data-favorite-control=""
         data-clip-id={clipId}
         aria-label="Sign in to favorite"
       >
         <HeartIcon filled={false} />
-      </a>
+      </TrackAnchor>
     );
   }
 
@@ -54,6 +57,8 @@ export function FavoriteButton({
       });
       if (!response.ok) {
         write(clipId, !next);
+      } else if (next) {
+        trackEvent(ANALYTICS_EVENTS.favorite, { clip_id: clipId });
       }
     } catch {
       write(clipId, !next);

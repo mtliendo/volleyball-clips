@@ -2,9 +2,13 @@ import type { Metadata, Viewport } from "next";
 import { Onest, Tektur } from "next/font/google";
 import { Suspense, type ReactNode } from "react";
 import { Auth0Provider } from "@auth0/nextjs-auth0/client";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader, SiteHeaderFallback } from "@/components/site-header";
+import { rootMetadata } from "@/lib/share-metadata";
+import { THEME_COLOR } from "@/lib/site";
 import "./globals.css";
 
 const tektur = Tektur({
@@ -19,15 +23,12 @@ const onest = Onest({
   weight: ["400", "500"],
 });
 
-export const metadata: Metadata = {
-  title: "VB POV",
-  description: "Volleyball clips from the glasses. Pick a night, open a session, swipe.",
-};
+export const metadata: Metadata = rootMetadata();
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#2b1614",
+  themeColor: THEME_COLOR,
 };
 
 export default async function RootLayout({
@@ -52,6 +53,8 @@ export default async function RootLayout({
           >
             {children}
           </SiteChrome>
+          <Analytics />
+          <SpeedInsights />
         </Auth0Provider>
       </body>
     </html>

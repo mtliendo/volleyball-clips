@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { TrackLink } from "@/components/track-click";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 
 export function SiteFooter() {
   return (
@@ -14,9 +16,9 @@ export function SiteFooter() {
           <Link href="/" className="text-muted hover:text-ink">
             Nights
           </Link>
-          <Link href="/pricing" className="text-muted hover:text-ink">
+          <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="text-muted hover:text-ink">
             Pricing
-          </Link>
+          </TrackLink>
           <Link href="/favorites" className="text-muted hover:text-ink">
             Favorites
           </Link>
