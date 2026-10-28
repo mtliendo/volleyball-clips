@@ -162,6 +162,7 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `STRIPE_SECRET_KEY` | Stripe **test** secret (`sk_test_…`). Optional; app degrades without it |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret. Optional |
 | `STRIPE_PRICE_ID` | Recurring $5/month test price. Optional |
+| `STRIPE_PORTAL_CONFIG_ID` | Optional Customer Portal configuration id (`bpc_…`). Passed to `billingPortal.sessions.create` when set |
 
 ### From `VolleyballClipsStack` outputs
 
@@ -190,7 +191,7 @@ Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of O
    - `invoice.payment_failed`
 
 5. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`.
-6. Enable the Customer Portal in Stripe for cancel and card updates.
+6. Enable the Customer Portal in Stripe for cancel and card updates. Optional: create a portal configuration and set `STRIPE_PORTAL_CONFIG_ID` so the portal session uses it. Leave it unset to use Stripe’s default.
 
 One more thing: if you will charge US or EU customers later, consider [Stripe Tax for recurring payments](https://docs.stripe.com/billing/taxes/collect-taxes). This app does not enable `automatic_tax`.
 
