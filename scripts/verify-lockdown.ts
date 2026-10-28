@@ -1,14 +1,17 @@
 /**
- * Phase 1 media lockdown checks. Point this at preview or production.
- * Phase 2 can reuse the same flags and add playback signing assertions.
+ * Phase 1 + 2 media lockdown checks. Point this at preview or production.
  *
  *   pnpm verify:lockdown -- --base-url https://vbpov.com --cdn-url https://dxxx.cloudfront.net
  *
  * Env alternatives: VERIFY_BASE_URL, VERIFY_CDN_URL, VERIFY_WATCH_URL,
- * VERIFY_ORIGINAL_KEY, VERIFY_FREE_COOKIE, VERIFY_PRO_COOKIE, VERIFY_SKIP_FEED=1
+ * VERIFY_ORIGINAL_KEY, VERIFY_PLAYBACK_KEY, VERIFY_FREE_COOKIE, VERIFY_PRO_COOKIE,
+ * VERIFY_SKIP_FEED=1, VERIFY_EXPECT_UNLOCKED=1, VERIFY_EXPECT_PLAYBACK_UNLOCKED=1,
+ * VERIFY_OIDC_TOKEN (Vercel preview protection), VERIFY_FEED_COOKIE (signed-in feed)
  *
  * Cookies are raw Cookie header values (Auth0 session). Install browsers with:
  *   pnpm exec playwright install chromium
+ *
+ * Screenshots use waitUntil: domcontentloaded / load — never networkidle.
  */
 import { mkdir } from "node:fs/promises";
 import { chromium, webkit, type Browser, type Page, type Response } from "playwright";
@@ -22,9 +25,12 @@ type Args = {
   cdnUrl: string;
   watchUrl: string | null;
   originalKey: string | null;
+  playbackKey: string | null;
   freeCookie: string | null;
   proCookie: string | null;
   skipFeed: boolean;
+  expectUploadsUnlocked: boolean;
+  expectPlaybackUnlocked: boolean;
   shotDir: string;
 };
 
@@ -55,9 +61,12 @@ function parseArgs(): Args {
     cdnUrl,
     watchUrl: argValue("--watch-url") || process.env.VERIFY_WATCH_URL || null,
     originalKey: argValue("--original-key") || process.env.VERIFY_ORIGINAL_KEY || null,
+    playbackKey: argValue("--playback-key") || process.env.VERIFY_PLAYBACK_KEY || null,
     freeCookie: argValue("--free-cookie") || process.env.VERIFY_FREE_COOKIE || null,
     proCookie: argValue("--pro-cookie") || process.env.VERIFY_PRO_COOKIE || null,
     skipFeed: process.argv.includes("--skip-feed") || process.env.VERIFY_SKIP_FEED === "1",
+    expectUploadsUnlocked: process.env.VERIFY_EXPECT_UNLOCKED === "1",
+    expectPlaybackUnlocked: process.env.VERIFY_EXPECT_PLAYBACK_UNLOCKED === "1",
     shotDir: process.env.VERIFY_SHOT_DIR || "test-results",
   };
 }
@@ -65,6 +74,23 @@ function parseArgs(): Args {
 function cookieHeaders(cookie: string | null): HeadersInit {
   return cookie ? { Cookie: cookie } : {};
 }
+
+const __bypass = process.env.VERIFY_OIDC_TOKEN;
+const __origFetch = globalThis.fetch;
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const base = (
+    argValue("--base-url") ||
+    process.env.VERIFY_BASE_URL ||
+    ""
+  ).replace(/\/$/, "");
+  if (__bypass && base && u.startsWith(base)) {
+    const h = new Headers(init?.headers);
+    h.set("x-vercel-trusted-oidc-idp-token", __bypass);
+    init = { ...init, headers: h };
+  }
+  return __origFetch(input, init);
+}) as typeof fetch;
 
 async function fetchText(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -83,16 +109,23 @@ function isMediaUrl(url: string) {
   return /\/playback\/|\.mp4(?:\?|$)|\/uploads\//i.test(url);
 }
 
-async function checkUnsignedUploads(cdnUrl: string, originalKey: string | null) {
-  const probeKey = originalKey || "uploads/lockdown-probe/not-a-real-clip/original.mp4";
-  const url = `${cdnUrl}/${probeKey
+function objectUrl(cdnUrl: string, key: string) {
+  return `${cdnUrl}/${key
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/")}`;
+}
+
+function signingDenied(body: string) {
+  return /Key-Pair-Id|MissingKey|signed request/i.test(body);
+}
+
+async function checkUnsignedUploads(cdnUrl: string, originalKey: string | null) {
+  const probeKey = originalKey || "uploads/lockdown-probe/not-a-real-clip/original.mp4";
+  const url = objectUrl(cdnUrl, probeKey);
   const response = await fetch(url, { method: "GET", redirect: "manual" });
   const body = await response.text();
-  const signingDenied = /Key-Pair-Id|MissingKey|signed request/i.test(body);
-  if (response.status !== 403 || !signingDenied) {
+  if (response.status !== 403 || !signingDenied(body)) {
     throw new Error(
       `unsigned ${probeKey} returned ${response.status}; expected 403 from CloudFront trusted key groups (Missing Key-Pair-Id). Body: ${body.slice(0, 240)}`,
     );
@@ -100,11 +133,24 @@ async function checkUnsignedUploads(cdnUrl: string, originalKey: string | null) 
   console.log("ok unsigned uploads/* -> 403 (CloudFront requires a signed URL)", probeKey);
 }
 
+async function checkUnsignedPlayback(cdnUrl: string, playbackKey: string) {
+  const url = objectUrl(cdnUrl, playbackKey);
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Range: "bytes=0-1" },
+    redirect: "manual",
+  });
+  const body = await response.text();
+  if (response.status !== 403 || !signingDenied(body)) {
+    throw new Error(
+      `unsigned ${playbackKey} returned ${response.status}; expected 403 from CloudFront trusted key groups (Missing Key-Pair-Id). Body: ${body.slice(0, 240)}`,
+    );
+  }
+  console.log("ok unsigned playback/* -> 403 (CloudFront requires a signed URL)", playbackKey);
+}
+
 async function checkPlaybackStillPublic(cdnUrl: string, playbackKey: string) {
-  const url = `${cdnUrl}/${playbackKey
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/")}`;
+  const url = objectUrl(cdnUrl, playbackKey);
   const response = await fetch(url, {
     method: "GET",
     headers: { Range: "bytes=0-1" },
@@ -114,12 +160,35 @@ async function checkPlaybackStillPublic(cdnUrl: string, playbackKey: string) {
   if (response.status !== 200 && response.status !== 206) {
     throw new Error(`playback ${playbackKey} returned ${response.status}; expected 200/206`);
   }
-  console.log(`ok playback still ${response.status}`, playbackKey);
+  console.log(`ok playback still ${response.status} (lockPlayback=false)`, playbackKey);
+}
+
+async function checkPostersStillPublic(cdnUrl: string, posterKey: string | null) {
+  if (!posterKey) {
+    console.warn("warn skip posters/* public check (no poster key in HTML)");
+    return;
+  }
+  const url = objectUrl(cdnUrl, posterKey);
+  const response = await fetch(url, { method: "GET", redirect: "manual" });
+  await response.body?.cancel();
+  if (response.status !== 200 && response.status !== 206) {
+    throw new Error(`poster ${posterKey} returned ${response.status}; expected 200/206 (posters stay public)`);
+  }
+  console.log("ok posters/* still public", posterKey, response.status);
 }
 
 function extractPlaybackKeys(html: string) {
   const keys = new Set<string>();
   const re = /playback\/[0-9a-f-]+\/[0-9a-f-]+\/playback\.mp4/gi;
+  for (const match of html.matchAll(re)) {
+    keys.add(match[0]);
+  }
+  return [...keys];
+}
+
+function extractPosterKeys(html: string) {
+  const keys = new Set<string>();
+  const re = /posters\/[0-9a-f-]+\/[0-9a-f-]+\/poster\.jpg/gi;
   for (const match of html.matchAll(re)) {
     keys.add(match[0]);
   }
@@ -182,6 +251,15 @@ async function checkHtmlAndApis(baseUrl: string, watchPath: string) {
     });
     assertNoLeak("POST /api/watch", watchApi.text);
     console.log("ok /api/watch JSON has no uploads/ keys");
+    if (watchApi.response.ok) {
+      const payload = JSON.parse(watchApi.text) as {
+        allowed?: boolean;
+        playback?: { playbackUrl?: string } | null;
+      };
+      if (payload.allowed && payload.playback?.playbackUrl) {
+        console.log("ok /api/watch issued a playback URL after allow");
+      }
+    }
   }
 
   return { html: watch.text, clipId };
@@ -322,6 +400,37 @@ async function checkFeedPlayback(args: Args, watchPath: string) {
     hasTouch: true,
     isMobile: true,
   });
+  const base = new URL(args.baseUrl);
+  if (process.env.VERIFY_FEED_COOKIE) {
+    await context.addCookies(
+      process.env.VERIFY_FEED_COOKIE.split(/;\s*/)
+        .filter(Boolean)
+        .map((c) => {
+          const i = c.indexOf("=");
+          return {
+            name: c.slice(0, i),
+            value: c.slice(i + 1),
+            domain: base.hostname,
+            path: "/",
+            secure: true,
+            httpOnly: true,
+            sameSite: "Lax" as const,
+          };
+        }),
+    );
+  }
+  if (__bypass) {
+    await context.route(
+      (u) => u.host === base.host,
+      (route) =>
+        route.continue({
+          headers: {
+            ...route.request().headers(),
+            "x-vercel-trusted-oidc-idp-token": __bypass,
+          },
+        }),
+    );
+  }
   const page = await context.newPage();
 
   page.on("console", (msg) => {
@@ -342,6 +451,7 @@ async function checkFeedPlayback(args: Args, watchPath: string) {
   page.on("response", onResponse);
   page.on("requestfailed", (request) => {
     if (!isMediaUrl(request.url())) return;
+    if (request.failure()?.errorText === "net::ERR_ABORTED") return;
     mediaFailures.push(`failed ${request.url()} (${request.failure()?.errorText ?? "unknown"})`);
   });
 
@@ -442,17 +552,31 @@ async function main() {
     baseUrl: args.baseUrl,
     cdnUrl: args.cdnUrl,
     skipFeed: args.skipFeed,
+    expectUploadsUnlocked: args.expectUploadsUnlocked,
+    expectPlaybackUnlocked: args.expectPlaybackUnlocked,
   });
 
-  await checkUnsignedUploads(args.cdnUrl, args.originalKey);
+  if (!args.expectUploadsUnlocked) {
+    await checkUnsignedUploads(args.cdnUrl, args.originalKey);
+  } else {
+    console.log("skip unsigned uploads/* (VERIFY_EXPECT_UNLOCKED=1)");
+  }
 
   const watchPath = await discoverWatchPath(args.baseUrl, args.watchUrl);
   const { html, clipId } = await checkHtmlAndApis(args.baseUrl, watchPath);
   const playbackKeys = extractPlaybackKeys(html);
-  if (playbackKeys.length === 0) {
-    throw new Error("watch HTML had no playback/.../playback.mp4 URL to confirm public playback");
+  const playbackKey = args.playbackKey || playbackKeys[0];
+  if (!playbackKey) {
+    throw new Error(
+      "watch HTML had no playback/.../playback.mp4 key. Pass --playback-key or VERIFY_PLAYBACK_KEY",
+    );
   }
-  await checkPlaybackStillPublic(args.cdnUrl, playbackKeys[0]);
+  if (args.expectPlaybackUnlocked) {
+    await checkPlaybackStillPublic(args.cdnUrl, playbackKey);
+  } else {
+    await checkUnsignedPlayback(args.cdnUrl, playbackKey);
+  }
+  await checkPostersStillPublic(args.cdnUrl, extractPosterKeys(html)[0] ?? null);
   await checkDownloadAuth(args.baseUrl, clipId, args.freeCookie, args.proCookie);
 
   if (args.skipFeed) {
@@ -461,7 +585,7 @@ async function main() {
     await checkFeedPlayback(args, watchPath);
   }
 
-  console.log("PASS: phase 1 originals lockdown checks");
+  console.log("PASS: phase 2 playback lockdown checks");
 }
 
 main().catch((error) => {

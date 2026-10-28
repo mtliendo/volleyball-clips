@@ -86,6 +86,9 @@ export class VolleyballClipsStack extends cdk.Stack {
     const lockUploads =
       String(this.node.tryGetContext("lockUploads") ?? "true").toLowerCase() !==
       "false";
+    const lockPlayback =
+      String(this.node.tryGetContext("lockPlayback") ?? "false").toLowerCase() ===
+      "true";
 
     const bucket = new s3.Bucket(this, "MediaBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -225,11 +228,11 @@ export class VolleyballClipsStack extends cdk.Stack {
 
     const signingPublicKey = new cloudfront.PublicKey(this, "SigningPublicKey", {
       comment:
-        "volleyball-clips signing key (uploads phase 1; reuse for playback phase 2)",
+        "volleyball-clips signing key (uploads + playback)",
       encodedKey: publicKeyPem,
     });
     const signingKeyGroup = new cloudfront.KeyGroup(this, "SigningKeyGroup", {
-      comment: "Trusted signers for originals now, playback later",
+      comment: "Trusted signers for originals and 1080p playback copies",
       items: [signingPublicKey],
     });
 
@@ -253,8 +256,18 @@ export class VolleyballClipsStack extends cdk.Stack {
           responseHeadersPolicy: downloadHeaders,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
-          // Phase 2: attach the same key group to playback/* (or default).
           trustedKeyGroups: lockUploads ? [signingKeyGroup] : undefined,
+        },
+        // Separate from default so posters/* stay public when playback is locked.
+        "playback/*": {
+          origin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
+          responseHeadersPolicy: mediaHeaders,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+          cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+          trustedKeyGroups: lockPlayback ? [signingKeyGroup] : undefined,
         },
       },
     });
@@ -334,6 +347,10 @@ export class VolleyballClipsStack extends cdk.Stack {
     new cdk.CfnOutput(this, "CLOUDFRONT_UPLOADS_LOCKED", {
       value: lockUploads ? "true" : "false",
       description: "Unsigned uploads/* requests fail with 403 when true",
+    });
+    new cdk.CfnOutput(this, "CLOUDFRONT_PLAYBACK_LOCKED", {
+      value: lockPlayback ? "true" : "false",
+      description: "Unsigned playback/* requests fail with 403 when true",
     });
     new cdk.CfnOutput(this, "TRANSCODE_WEBHOOK_SECRET_PARAMETER", {
       value: TRANSCODE_WEBHOOK_SECRET_PARAMETER,

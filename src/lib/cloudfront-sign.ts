@@ -2,9 +2,12 @@ import "server-only";
 
 import { getSignedCookies, getSignedUrl } from "@aws-sdk/cloudfront-signer";
 import { cdnUrl } from "./cdn";
+import { SIGNED_PLAYBACK_TTL_SECONDS } from "./playback";
 
-/** Short TTL so a leaked signed URL is useless. Phase 2 can reuse this. */
+/** Short TTL so a leaked signed download URL is useless. */
 export const SIGNED_URL_TTL_SECONDS = 5 * 60;
+
+export { SIGNED_PLAYBACK_TTL_SECONDS };
 
 export function readCloudFrontPrivateKey() {
   const raw = process.env.CLOUDFRONT_PRIVATE_KEY?.trim();
@@ -33,8 +36,9 @@ export function isCloudFrontSigningConfigured() {
 }
 
 /**
- * Sign any CDN object URL with the trusted key group.
- * Phase 1 uses this for `uploads/*`. Phase 2 can pass `playback/*` (or cookies).
+ * Sign any CDN object URL with the trusted key group (uploads + playback).
+ * Per-clip signed URLs are used for playback because the CDN host is
+ * cross-origin (`*.cloudfront.net`); the app cannot set CloudFront cookies.
  */
 export function signCdnUrl(
   key: string,
@@ -55,7 +59,7 @@ export function signCdnUrl(
   });
 }
 
-/** Phase 2 can attach these cookies to `playback/*` once that behavior requires signing. */
+/** Cookie signer for a future `cdn.vbpov.com` host. Unused while the CDN is `*.cloudfront.net`. */
 export function signCdnCookies(
   resourceUrl: string,
   expiresInSeconds = SIGNED_URL_TTL_SECONDS,
@@ -86,9 +90,23 @@ export function originalObjectUrl(key: string) {
 }
 
 /**
- * URL the server uses to fetch a playback copy. Phase 1 leaves these unsigned.
- * Phase 2 should switch this to `signCdnUrl(key)` (or signed cookies).
+ * URL the server uses to fetch a playback copy (download proxy).
+ * Falls back to a public CDN URL when signing is not configured.
  */
 export function playbackObjectUrl(key: string) {
+  if (isCloudFrontSigningConfigured()) {
+    return signCdnUrl(key, SIGNED_URL_TTL_SECONDS);
+  }
+  return cdnUrl(key);
+}
+
+/**
+ * Browser feed URL. Longer TTL than downloads so a session does not stall;
+ * the feed refreshes the grant before expiry.
+ */
+export function playbackWatchUrl(key: string) {
+  if (isCloudFrontSigningConfigured()) {
+    return signCdnUrl(key, SIGNED_PLAYBACK_TTL_SECONDS);
+  }
   return cdnUrl(key);
 }
