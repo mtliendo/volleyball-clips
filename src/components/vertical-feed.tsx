@@ -13,6 +13,12 @@ import { mergeUtmIntoPath } from "@/lib/utm";
 import type { PinLabel } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/entitlements";
 import { PIN_LABEL_COPY } from "@/lib/labels";
+import {
+  isPlaybackGrantFresh,
+  isPlaybackGrantStale,
+  playbackRefreshDelayMs,
+  type PlaybackGrant,
+} from "@/lib/playback";
 import type { ClipPin, PublicClip } from "@/lib/queries";
 
 const SOUND_KEY = "vbpov-sound";
@@ -104,6 +110,30 @@ function keyDelta(key: string) {
   return 0;
 }
 
+function neighborClipIds(clips: PublicClip[], index: number) {
+  return [index - 1, index + 1]
+    .map((item) => clips[item]?.id)
+    .filter((id): id is string => Boolean(id));
+}
+
+function mergePlaybackGrants(
+  current: Record<string, PlaybackGrant>,
+  incoming: PlaybackGrant[],
+) {
+  if (incoming.length === 0) return current;
+  const next = { ...current };
+  let changed = false;
+  for (const grant of incoming) {
+    const prev = next[grant.clipId];
+    // Keep a still-fresh URL so a /api/watch refresh does not reload the player.
+    if (!prev || isPlaybackGrantStale(prev)) {
+      next[grant.clipId] = grant;
+      changed = true;
+    }
+  }
+  return changed ? next : current;
+}
+
 export function VerticalFeed({
   clips,
   startId,
@@ -113,6 +143,8 @@ export function VerticalFeed({
   viewer,
   closeHref,
   forceWall = null,
+  initialPlayback = {},
+  requireSignedPlayback = false,
 }: {
   clips: PublicClip[];
   startId: string;
@@ -122,6 +154,8 @@ export function VerticalFeed({
   viewer: Viewer;
   closeHref: string;
   forceWall?: "watch" | "download" | null;
+  initialPlayback?: Record<string, PlaybackGrant>;
+  requireSignedPlayback?: boolean;
 }) {
   const startIndex = Math.max(0, clips.findIndex((clip) => clip.id === startId));
   const [activeIndex, setActiveIndex] = useState(startIndex);
@@ -167,8 +201,21 @@ export function VerticalFeed({
   const clipsRef = useRef(clips);
   const playGenRef = useRef(0);
   const playIndexRef = useRef<(index: number) => void>(() => undefined);
+  const requireSignedRef = useRef(requireSignedPlayback);
+  const [playbackById, setPlaybackById] = useState(initialPlayback);
+  const playbackByIdRef = useRef(playbackById);
+  const [watchNonce, setWatchNonce] = useState(0);
+  const errorRetriesRef = useRef<Record<string, number>>({});
 
   const active = clips[activeIndex];
+
+  const srcForClip = useCallback((clip: PublicClip | undefined) => {
+    if (!clip) return "";
+    const grant = playbackByIdRef.current[clip.id];
+    if (isPlaybackGrantFresh(grant)) return grant.playbackUrl;
+    if (requireSignedRef.current) return "";
+    return cdnUrl(clip.playbackKey);
+  }, []);
 
   const syncSoundUi = useCallback((player: HTMLVideoElement) => {
     setSoundOn(!player.muted);
@@ -189,7 +236,7 @@ export function VerticalFeed({
     (index: number) => {
       const player = playerRef.current;
       const clip = clipsRef.current[index];
-      const fallback = clip ? cdnUrl(clip.playbackKey) : "";
+      const fallback = srcForClip(clip);
       const src = warmedSrc(slides.current[index], fallback);
       if (!player) return;
 
@@ -201,6 +248,8 @@ export function VerticalFeed({
       const gen = ++playGenRef.current;
       const wantSound = unlockedRef.current && !userMutedRef.current;
       const srcChanged = player.dataset.src !== src;
+      const switchingClip = player.dataset.clipId !== clip?.id;
+      const resumeTime = !switchingClip && srcChanged ? player.currentTime : 0;
 
       if (srcChanged) {
         player.classList.remove("is-ready");
@@ -210,7 +259,16 @@ export function VerticalFeed({
       if (srcChanged) {
         player.poster = clip?.posterKey ? cdnUrl(clip.posterKey) : "";
         player.dataset.src = src;
+        if (clip) player.dataset.clipId = clip.id;
         player.src = src;
+        if (resumeTime > 0.05) {
+          const onMeta = () => {
+            if (gen !== playGenRef.current) return;
+            player.currentTime = resumeTime;
+            player.removeEventListener("loadedmetadata", onMeta);
+          };
+          player.addEventListener("loadedmetadata", onMeta);
+        }
       }
 
       // Same unlocked element: never fall back to muted after the user tap.
@@ -226,7 +284,7 @@ export function VerticalFeed({
           syncSoundUi(player);
         });
     },
-    [attachPlayer, syncSoundUi],
+    [attachPlayer, srcForClip, syncSoundUi],
   );
 
   const syncUrl = useCallback(
@@ -247,7 +305,9 @@ export function VerticalFeed({
   useLayoutEffect(() => {
     clipsRef.current = clips;
     playIndexRef.current = playIndex;
-  }, [clips, playIndex]);
+    requireSignedRef.current = requireSignedPlayback;
+    playbackByIdRef.current = playbackById;
+  }, [clips, playIndex, playbackById, requireSignedPlayback]);
 
   useLayoutEffect(() => {
     const root = scroller.current;
@@ -275,10 +335,23 @@ export function VerticalFeed({
       applyMute(player, !wantSound);
       syncSoundUi(player);
     };
+    const onError = () => {
+      const clip = clipsRef.current[activeIndexRef.current];
+      if (!clip || !requireSignedRef.current) return;
+      const tries = errorRetriesRef.current[clip.id] ?? 0;
+      if (tries >= 2) return;
+      errorRetriesRef.current[clip.id] = tries + 1;
+      const next = { ...playbackByIdRef.current };
+      delete next[clip.id];
+      playbackByIdRef.current = next;
+      setPlaybackById(next);
+      setWatchNonce((value) => value + 1);
+    };
     player.addEventListener("volumechange", onVolume);
     player.addEventListener("playing", onPlaying);
     player.addEventListener("waiting", onWaiting);
     player.addEventListener("loadedmetadata", onMeta);
+    player.addEventListener("error", onError);
 
     const tryPlay = () => playIndexRef.current(activeIndexRef.current);
     tryPlay();
@@ -290,6 +363,7 @@ export function VerticalFeed({
       player.removeEventListener("playing", onPlaying);
       player.removeEventListener("waiting", onWaiting);
       player.removeEventListener("loadedmetadata", onMeta);
+      player.removeEventListener("error", onError);
       player.remove();
       if (playerRef.current === player) {
         playerRef.current = null;
@@ -336,28 +410,64 @@ export function VerticalFeed({
   }, [clips, playIndex, syncUrl]);
 
   useEffect(() => {
-    if (!active || viewer.watchUnlimited) {
-      return;
-    }
+    if (!active) return;
+    const needsWatch = !viewer.watchUnlimited || requireSignedPlayback;
+    if (!needsWatch) return;
 
     let cancelled = false;
-    void fetch("/api/watch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clipId: active.id }),
-    }).then((response) => {
+    let refreshTimer = 0;
+    const clipId = active.id;
+    const preloadClipIds = neighborClipIds(
+      clipsRef.current,
+      activeIndexRef.current,
+    ).filter((id) => id !== clipId);
+
+    async function run() {
+      const response = await fetch("/api/watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ clipId, preloadClipIds }),
+      });
       if (cancelled) return;
+
       const blocked = response.status === 403;
       if (blocked) {
         playerRef.current?.pause();
       }
-      setWatchState({ clipId: active.id, blocked });
-    });
+      setWatchState({ clipId, blocked });
+      if (blocked || !response.ok) return;
 
+      const body = (await response.json().catch(() => ({}))) as {
+        playback?: PlaybackGrant | null;
+        preload?: PlaybackGrant[];
+      };
+      const incoming = [
+        ...(body.playback ? [body.playback] : []),
+        ...(Array.isArray(body.preload) ? body.preload : []),
+      ];
+      const merged = mergePlaybackGrants(playbackByIdRef.current, incoming);
+      if (merged !== playbackByIdRef.current) {
+        playbackByIdRef.current = merged;
+        setPlaybackById(merged);
+      }
+      errorRetriesRef.current[clipId] = 0;
+      playIndexRef.current(activeIndexRef.current);
+
+      const grant = playbackByIdRef.current[clipId];
+      if (grant && requireSignedPlayback) {
+        refreshTimer = window.setTimeout(() => {
+          if (!cancelled) void run();
+        }, playbackRefreshDelayMs(grant));
+      }
+    }
+
+    void run();
     return () => {
       cancelled = true;
+      window.clearTimeout(refreshTimer);
     };
-  }, [active, viewer.watchUnlimited]);
+  }, [active, requireSignedPlayback, viewer.watchUnlimited, watchNonce]);
 
   const lastClipView = useRef({ id: "", at: 0 });
   useEffect(() => {
@@ -526,7 +636,12 @@ export function VerticalFeed({
     <div className="feed-root" data-active-clip={active.id}>
       <div ref={scroller} className="feed-scroller">
         {clips.map((clip, index) => {
-          const playback = cdnUrl(clip.playbackKey);
+          const grant = playbackById[clip.id];
+          const playback = isPlaybackGrantFresh(grant)
+            ? grant.playbackUrl
+            : requireSignedPlayback
+              ? ""
+              : cdnUrl(clip.playbackKey);
           const poster = cdnUrl(clip.posterKey);
           const preload = Math.abs(index - activeIndex) <= PRELOAD_WINDOW && index !== activeIndex;
 

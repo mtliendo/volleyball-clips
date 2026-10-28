@@ -292,3 +292,12 @@ export async function getReadyClip(clipId: string) {
     .limit(1);
   return row ?? null;
 }
+
+export async function getReadyClips(clipIds: string[]) {
+  const ids = [...new Set(clipIds.filter(isUuid))];
+  if (!isDatabaseConfigured() || ids.length === 0) return [];
+  return getDb()
+    .select()
+    .from(clips)
+    .where(and(inArray(clips.id, ids), eq(clips.status, "ready")));
+}

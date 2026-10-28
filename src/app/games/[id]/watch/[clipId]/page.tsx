@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { VerticalFeed } from "@/components/vertical-feed";
 import { getViewer } from "@/lib/entitlements";
+import {
+  initialFeedPlayback,
+  isPlaybackSigningEnabled,
+} from "@/lib/playback-access";
 import { getGameWithVenue, listGameClips, listTags } from "@/lib/queries";
 import { clipPageMetadata, getClipShare } from "@/lib/share-metadata";
 
@@ -57,6 +61,12 @@ export default async function WatchPage({
   }
 
   const closeQuery = tag ? `?tag=${encodeURIComponent(tag)}` : "";
+  const requireSignedPlayback = isPlaybackSigningEnabled();
+  // Guests wait for POST /api/watch so the 7-a-day cap is checked before a URL is issued.
+  const initialPlayback =
+    viewer.watchUnlimited && requireSignedPlayback
+      ? initialFeedPlayback(feed, clipId)
+      : {};
 
   return (
     <VerticalFeed
@@ -67,6 +77,8 @@ export default async function WatchPage({
       catalogTags={catalogTags}
       viewer={viewer}
       closeHref={`/games/${id}${closeQuery}`}
+      initialPlayback={initialPlayback}
+      requireSignedPlayback={requireSignedPlayback}
     />
   );
 }

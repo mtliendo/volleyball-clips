@@ -67,9 +67,11 @@ phone / laptop
                                     │     POST /api/webhooks/transcode (HMAC)
                                     │
                                     └─ CloudFront (OAC)
-                                          playback + posters inline (unsigned in phase 1)
-                                          uploads/* require a CloudFront signed URL
-                                          (trusted key group; Pro downloads proxy through the app)
+                                          posters/* public (Open Graph cards)
+                                          playback/* require a CloudFront signed URL when lockPlayback=true
+                                          uploads/* require a CloudFront signed URL when lockUploads=true
+                                          (same trusted key group; Pro originals and free 1080p
+                                          downloads proxy through the app)
 ```
 
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind v4, pnpm.
@@ -85,7 +87,9 @@ S3 keys:
 | `playback/{gameId}/{clipId}/playback.mp4` | 1080-wide H.264 ~5 Mbps / 30 fps, faststart (feed + free download) |
 | `posters/{gameId}/{clipId}/poster.jpg` | Still for the grid and player |
 
-Public playback uses `cdnUrl()`. The watch page and public APIs never send `originalKey` or any `uploads/` URL. Free downloads never serve `uploads/`. Pro originals are fetched server-side with a short-lived CloudFront signed URL (`CLOUDFRONT_KEY_PAIR_ID` + `CLOUDFRONT_PRIVATE_KEY`) and streamed from `/api/clips/:id/download` as an attachment. The same signer is what phase 2 will reuse for playback. The transcode Lambda reads originals with S3 `GetObject`, not CloudFront.
+The watch page and public APIs never send `originalKey` or any `uploads/` URL. Free downloads never serve `uploads/`. Pro originals and free 1080p downloads are fetched server-side with a short-lived CloudFront signed URL (`CLOUDFRONT_KEY_PAIR_ID` + `CLOUDFRONT_PRIVATE_KEY`) and streamed from `/api/clips/:id/download` as an attachment.
+
+Feed playback uses a **per-clip signed URL** (2 hour TTL, refreshed ~10 minutes before expiry), not signed cookies. The CDN is the CloudFront default host (`*.cloudfront.net`), so the app cannot set cookies for that domain from `vbpov.com`. `POST /api/watch` issues the URL only after it allows the view (anonymous 7-a-day cap still applies). Signed-in viewers get start+neighbor URLs on the first HTML response so autoplay and preload stay snappy. When signing env is unset, the app falls back to public `cdnUrl()` so you can ship the app before `lockPlayback=true`. Posters stay public. The transcode Lambda reads originals with S3 `GetObject`, not CloudFront.
 
 Vercel talks to AWS with `@vercel/functions/oidc` `awsCredentialsProvider`. The federated role `volleyball-clips-vercel-presign` can:
 
@@ -182,10 +186,10 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `AWS_S3_BUCKET` | Bucket name for presigned PUTs |
 | `AWS_ROLE_ARN` | Vercel OIDC role |
 | `NEXT_PUBLIC_CDN_URL` | `https://<cloudfront-domain>` for playback and posters |
-| `CLOUDFRONT_KEY_PAIR_ID` | CloudFront public key id (trusted key group). Required before locking `uploads/*` |
+| `CLOUDFRONT_KEY_PAIR_ID` | CloudFront public key id (trusted key group). Required before locking `uploads/*` or `playback/*` |
 | `TRANSCODE_WEBHOOK_SECRET_PARAMETER` | Name of the SSM SecureString |
 
-Set `CLOUDFRONT_PRIVATE_KEY` yourself (PEM with real newlines or `\n`, or base64 of the PEM). Never put it in the repo or in CDK context. The app works without these vars while `uploads/*` is still public; after the CDK lock, downloads of originals fail until they are set.
+Set `CLOUDFRONT_PRIVATE_KEY` yourself (PEM with real newlines or `\n`, or base64 of the PEM). Never put it in the repo or in CDK context. The app works without these vars while those prefixes are still public; after a CDK lock, unsigned objects 403 until the vars are set.
 
 Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of OIDC. Do not set those on Vercel.
 
@@ -244,10 +248,11 @@ npx cdk deploy \
   -c webhookUrl=https://<app-host>/api/webhooks/transcode \
   -c allowedOrigins=http://localhost:3000,https://<app-host> \
   -c cloudfrontPublicKeyPath=./keys/cloudfront-public.pem \
-  -c lockUploads=false
+  -c lockUploads=true \
+  -c lockPlayback=false
 ```
 
-Useful context flags: `webhookUrl`, `allowedOrigins`, `vercelTeamSlug` (`focus-otters-projects`), `vercelProjectName` (`volleyball-clips`), `vercelOidcProviderArn`, `cloudfrontPublicKeyPath` or `cloudfrontPublicKeyPem`, `lockUploads` (`true` locks unsigned `uploads/*`; pass `false` for the first deploy so you can set Vercel signing env before the lock).
+Useful context flags: `webhookUrl`, `allowedOrigins`, `vercelTeamSlug` (`focus-otters-projects`), `vercelProjectName` (`volleyball-clips`), `vercelOidcProviderArn`, `cloudfrontPublicKeyPath` or `cloudfrontPublicKeyPem`, `lockUploads` (`true` locks unsigned `uploads/*`), `lockPlayback` (`true` locks unsigned `playback/*`; default `false` so the app can ship first). Posters stay on the default behavior and remain public.
 
 Generate the signing keypair on the deploy machine (private key never enters git):
 
@@ -258,7 +263,7 @@ openssl rsa -pubout -in cloudfront-private.pem -out cloudfront-public.pem
 
 The stack is `VolleyballClipsStack` in `us-east-2`. Every resource is tagged `project=volleyball-clips`.
 
-After deploy, set `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, `CLOUDFRONT_KEY_PAIR_ID`, `CLOUDFRONT_PRIVATE_KEY`, and `TRANSCODE_WEBHOOK_SECRET` on Vercel (preview and production). Then deploy the app, then `cdk deploy` again with `-c lockUploads=true`.
+After deploy, set `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, `CLOUDFRONT_KEY_PAIR_ID`, `CLOUDFRONT_PRIVATE_KEY`, and `TRANSCODE_WEBHOOK_SECRET` on Vercel (preview and production). Then deploy the app, then `cdk deploy` again with `-c lockUploads=true` and, when ready, `-c lockPlayback=true`.
 
 Lockdown check (preview or production):
 
@@ -268,9 +273,12 @@ pnpm verify:lockdown -- \
   --base-url https://<app-host> \
   --cdn-url https://<cloudfront-domain> \
   --original-key uploads/<gameId>/<clipId>/<file>.mp4 \
+  --playback-key playback/<gameId>/<clipId>/playback.mp4 \
   --free-cookie '<Cookie header>' \
   --pro-cookie '<Cookie header>'
 ```
+
+While `lockPlayback` is still false, set `VERIFY_EXPECT_PLAYBACK_UNLOCKED=1`. For a Vercel preview behind OIDC, set `VERIFY_OIDC_TOKEN`. For a signed-in feed, set `VERIFY_FEED_COOKIE`. The Playwright pass uses `domcontentloaded` / `load` (never `networkidle`) and ignores `net::ERR_ABORTED` from source switches.
 
 The Lambda is 10 GB RAM, 15 minute timeout, 5 GB ephemeral disk, Node.js 22 + ffmpeg layer. Output is 1080-wide H.264 at ~5 Mbps / 30 fps with `+faststart`, plus a poster JPG.
 
