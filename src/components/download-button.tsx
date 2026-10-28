@@ -1,4 +1,9 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
 import { authLoginHref } from "@/lib/auth-urls";
+import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/lib/download";
 
 export function DownloadButton({
   clipId,
@@ -7,6 +12,7 @@ export function DownloadButton({
   remaining,
   returnTo,
   compact = false,
+  onRemainingChange,
 }: {
   clipId: string;
   canDownload: boolean;
@@ -14,7 +20,14 @@ export function DownloadButton({
   remaining: number | null;
   returnTo: string;
   compact?: boolean;
+  onRemainingChange?: (remaining: number | null) => void;
 }) {
+  const [pending, setPending] = useState(false);
+  const [limitOpen, setLimitOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [localRemaining, setLocalRemaining] = useState(remaining);
+  const left = onRemainingChange ? remaining : localRemaining;
+
   if (!canDownload) {
     return (
       <a
@@ -28,22 +41,128 @@ export function DownloadButton({
     );
   }
 
+  function setLeft(next: number | null) {
+    if (onRemainingChange) {
+      onRemainingChange(next);
+      return;
+    }
+    setLocalRemaining(next);
+  }
+
+  function showLimit() {
+    setLimitOpen(true);
+    if (left !== null) {
+      setLeft(0);
+    }
+  }
+
+  async function onDownload() {
+    if (pending) return;
+    setFailed(false);
+
+    if (!isPro && left === 0) {
+      showLimit();
+      return;
+    }
+
+    setPending(true);
+    try {
+      const response = await fetch(`/api/clips/${clipId}/download`);
+      if (response.status === 402 || response.status === 403) {
+        showLimit();
+        return;
+      }
+      if (!response.ok) {
+        setFailed(true);
+        return;
+      }
+
+      const headerLeft = response.headers.get(DOWNLOADS_REMAINING_HEADER);
+      if (headerLeft !== null && headerLeft !== "") {
+        const next = Number(headerLeft);
+        if (Number.isFinite(next)) {
+          setLeft(next);
+        }
+      } else if (left !== null) {
+        setLeft(Math.max(0, left - 1));
+      }
+
+      const blob = await response.blob();
+      const filename =
+        filenameFromContentDisposition(response.headers.get("Content-Disposition")) ??
+        (isPro ? "vbpov-original.mp4" : "vbpov-1080p.mp4");
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+    } catch {
+      setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
   const label = isPro
     ? "Original"
-    : remaining === null
+    : left === null
       ? "1080p"
-      : `${remaining} left`;
+      : `${left} left`;
 
   return (
-    <a
-      href={`/api/clips/${clipId}/download`}
-      className={compact ? "icon-btn" : "btn btn-ghost"}
-      data-download-control=""
-      data-clip-id={clipId}
-      aria-label={isPro ? "Download original" : "Download 1080p"}
-    >
-      {compact ? <DownloadIcon /> : `Download ${label}`}
-    </a>
+    <>
+      <button
+        type="button"
+        className={compact ? "icon-btn download-ctrl" : "btn btn-ghost"}
+        data-download-control=""
+        data-clip-id={clipId}
+        data-download-remaining={left === null ? undefined : String(left)}
+        data-download-pending={pending ? "true" : undefined}
+        aria-label={
+          isPro
+            ? "Download original"
+            : left === null
+              ? "Download 1080p"
+              : `Download 1080p, ${left} left this week`
+        }
+        disabled={pending}
+        onClick={(event) => {
+          event.stopPropagation();
+          void onDownload();
+        }}
+      >
+        {compact ? (
+          <>
+            <DownloadIcon />
+            <span className="download-ctrl-count">
+              {!isPro && left !== null ? `${left} left` : isPro ? "Original" : "1080p"}
+            </span>
+          </>
+        ) : (
+          `Download ${label}`
+        )}
+      </button>
+      {failed ? (
+        <p className="download-error" role="status">
+          Download failed. Try again.
+        </p>
+      ) : null}
+      {limitOpen ? (
+        <div className="download-limit" role="status" data-download-limit="">
+          <p>
+            You&apos;ve used your 3 free downloads this week.{" "}
+            <Link href="/pricing">Go Pro</Link> for unlimited downloads and the originals.
+          </p>
+          <button type="button" className="btn btn-ghost !min-h-10" onClick={() => setLimitOpen(false)}>
+            Close
+          </button>
+        </div>
+      ) : null}
+    </>
   );
 }
 
