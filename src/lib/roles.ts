@@ -10,9 +10,11 @@ export type AuthUser = {
   [key: string]: unknown;
 };
 
-type SessionLike = {
+type SessionObject = {
   user?: AuthUser | null;
-} | null | undefined;
+};
+
+type SessionLike = SessionObject | null | undefined;
 
 export function getRoles(user?: AuthUser | null): string[] {
   if (!user) {
@@ -29,6 +31,10 @@ export function getRoles(user?: AuthUser | null): string[] {
   return [];
 }
 
+function isSessionLike(value: SessionObject | AuthUser): value is SessionObject {
+  return "user" in value && !("sub" in value);
+}
+
 /**
  * True when the Auth0 session user has the `admin` role on the
  * `https://vbpov.com/roles` custom claim (string array from the post-login Action).
@@ -39,10 +45,6 @@ export function isAdmin(sessionOrUser?: SessionLike | AuthUser | null): boolean 
     return false;
   }
 
-  const user =
-    "user" in sessionOrUser && !("sub" in sessionOrUser)
-      ? sessionOrUser.user
-      : (sessionOrUser as AuthUser);
-
+  const user = isSessionLike(sessionOrUser) ? sessionOrUser.user : sessionOrUser;
   return getRoles(user).includes(ADMIN_ROLE);
 }
