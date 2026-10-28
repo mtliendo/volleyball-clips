@@ -36,11 +36,11 @@ export function DeleteClipButton({ clipId }: { clipId: string }) {
         type="button"
         onClick={() => void onDelete()}
         disabled={pending}
-        className="text-xs text-court disabled:opacity-60"
+        className="text-xs text-error disabled:opacity-60"
       >
         {pending ? "Deleting…" : "Delete"}
       </button>
-      {error ? <p className="text-xs text-court">{error}</p> : null}
+      {error ? <p className="text-xs text-error">{error}</p> : null}
     </div>
   );
 }

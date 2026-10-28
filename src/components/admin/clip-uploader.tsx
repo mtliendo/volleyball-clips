@@ -118,12 +118,12 @@ export function ClipUploader({ gameId }: { gameId: string }) {
   }
 
   return (
-    <section className="rounded-3xl border border-line bg-panel p-4">
+    <section className="well p-4">
       <h2 className="display text-2xl">Upload clips</h2>
       <p className="mt-1 text-sm text-muted">
         Pick videos from the camera roll. Uploads go straight to S3 in parallel.
       </p>
-      <label className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-court/50 bg-panel-2 px-4 text-center">
+      <label className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-card border border-dashed border-rule-2 bg-paper-3 px-4 text-center">
         <span className="text-sm">Tap to choose videos</span>
         <span className="mt-1 text-xs text-muted">Up to 1 GB each · MP4 / MOV / WebM</span>
         <input
@@ -151,9 +151,9 @@ export function ClipUploader({ gameId }: { gameId: string }) {
                       : `${job.progress}%`}
                 </span>
               </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-panel-2">
+              <div className="mt-1 h-1.5 overflow-hidden rounded-pill bg-paper-3">
                 <div
-                  className={`h-full ${job.status === "error" ? "bg-red-500" : "bg-court"}`}
+                  className={`h-full ${job.status === "error" ? "bg-error" : "bg-accent"}`}
                   style={{ width: `${job.progress}%` }}
                 />
               </div>

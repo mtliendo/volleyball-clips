@@ -4,16 +4,33 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { auth0 } from "./auth0";
 import { isAuth0Configured } from "./env";
-import { isAdmin } from "./roles";
+import { isAdmin, type AuthUser } from "./roles";
 
 export { isAdmin, ROLES_CLAIM, ADMIN_ROLE } from "./roles";
 
-export async function getSession() {
+export type AppSession = {
+  user: AuthUser;
+};
+
+export async function getSession(): Promise<AppSession | null> {
   if (!isAuth0Configured()) {
     return null;
   }
 
-  return auth0.getSession();
+  const session = await auth0.getSession();
+  if (!session?.user) {
+    return null;
+  }
+
+  return { user: session.user as AuthUser };
+}
+
+export async function requireUserPage(returnTo: string) {
+  const session = await getSession();
+  if (!session) {
+    redirect(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+  return session;
 }
 
 export async function requireAdminPage(returnTo = "/admin") {
@@ -25,6 +42,17 @@ export async function requireAdminPage(returnTo = "/admin") {
     redirect("/not-authorized");
   }
   return session;
+}
+
+export async function requireUserApi() {
+  const session = await getSession();
+  if (!session) {
+    return {
+      session: null,
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+  return { session, error: null };
 }
 
 export async function requireAdminApi() {

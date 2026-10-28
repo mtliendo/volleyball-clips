@@ -2,14 +2,20 @@ import Link from "next/link";
 
 export default function NotAuthorizedPage() {
   return (
-    <div className="space-y-3 py-10 text-center">
-      <h1 className="display text-4xl">Not authorized</h1>
-      <p className="text-sm text-muted">
-        You need the admin role to upload or manage clips.
+    <div className="container space-y-4 py-16">
+      <h1 className="display text-display-s">Not an admin</h1>
+      <p className="lead">
+        You need the admin role to upload or manage clips. Your account can
+        still watch, favorite, and download.
       </p>
-      <Link href="/" className="text-sm text-court">
-        Back to the calendar
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link href="/" className="btn btn-primary">
+          Back to nights
+        </Link>
+        <Link href="/favorites" className="btn btn-ghost">
+          My favorites
+        </Link>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ export default async function AdminVenuesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="display text-4xl">Venues</h1>
+      <h1 className="display text-section">Venues</h1>
       <VenueManager venues={venues} />
     </div>
   );

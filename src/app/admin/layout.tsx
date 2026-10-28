@@ -11,18 +11,18 @@ export default async function AdminLayout({
   await requireAdminPage("/admin");
 
   return (
-    <div className="space-y-5">
+    <div className="container space-y-5 py-6">
       <nav className="-mx-1 flex gap-2 overflow-x-auto text-sm">
-        <Link href="/admin" className="rounded-full bg-panel-2 px-3 py-1.5 text-muted">
+        <Link href="/admin" className="chip">
           Overview
         </Link>
-        <Link href="/admin/games" className="rounded-full bg-panel-2 px-3 py-1.5 text-muted">
-          Games
+        <Link href="/admin/games" className="chip">
+          Sessions
         </Link>
-        <Link href="/admin/venues" className="rounded-full bg-panel-2 px-3 py-1.5 text-muted">
+        <Link href="/admin/venues" className="chip">
           Venues
         </Link>
-        <Link href="/admin/tags" className="rounded-full bg-panel-2 px-3 py-1.5 text-muted">
+        <Link href="/admin/tags" className="chip">
           Tags
         </Link>
       </nav>

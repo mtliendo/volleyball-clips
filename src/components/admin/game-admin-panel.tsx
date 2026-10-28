@@ -21,9 +21,9 @@ export function GameAdminPanel({
   const [open, setOpen] = useState(false);
 
   return (
-    <section className="space-y-3 rounded-3xl border border-line bg-panel p-4">
+    <section className="well space-y-3 p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium">Signed-in actions</p>
+        <p className="text-sm font-medium">Admin actions</p>
         <div className="flex items-center gap-4">
           <button
             type="button"

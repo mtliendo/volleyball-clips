@@ -49,3 +49,14 @@ infra/layers/ffmpeg/bin
 # local secrets
 .env.local
 .env
+
+# Hallmark local skill + capture output
+.agents/
+.hallmark/before/
+.hallmark/after/
+.hallmark/*.png
+.hallmark/*.jpg
+.hallmark/*.webp
+.hallmark/*.html
+.hallmark/*.txt
+.hallmark/*.json

@@ -18,7 +18,7 @@ export default async function EditGamePage({
 
   return (
     <div className="space-y-4">
-      <h1 className="display text-4xl">Edit game</h1>
+      <h1 className="display text-section">Edit session</h1>
       <GameForm
         venues={venues}
         game={{

@@ -45,11 +45,11 @@ export function DeleteGameButton({
         type="button"
         onClick={() => void onDelete()}
         disabled={pending}
-        className="text-sm text-court disabled:opacity-60"
+        className="text-sm text-error disabled:opacity-60"
       >
-        {pending ? "Deleting…" : "Delete game"}
+        {pending ? "Deleting…" : "Delete session"}
       </button>
-      {error ? <p className="text-sm text-court">{error}</p> : null}
+      {error ? <p className="text-sm text-error">{error}</p> : null}
     </div>
   );
 }

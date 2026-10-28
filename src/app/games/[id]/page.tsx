@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { GameAdminPanel } from "@/components/admin/game-admin-panel";
-import { ClipFeed } from "@/components/clip-feed";
-import { getSession, isAdmin } from "@/lib/admin";
+import { ClipGrid } from "@/components/clip-grid";
 import { formatGameWhen, toDatetimeLocalValue } from "@/lib/dates";
+import { getViewer } from "@/lib/entitlements";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
 import { getGameWithVenue, listGameClips, listTags, listVenues } from "@/lib/queries";
 
@@ -20,27 +20,24 @@ export default async function GamePage({
     notFound();
   }
 
-  const session = await getSession();
-  const admin = isAdmin(session);
+  const viewer = await getViewer();
   const [clips, tags, venues] = await Promise.all([
-    listGameClips(id, { readyOnly: true }),
+    listGameClips(id, { readyOnly: true, favoriteUserId: viewer.appUserId }),
     listTags(),
-    admin ? listVenues() : Promise.resolve([]),
+    viewer.isAdmin ? listVenues() : Promise.resolve([]),
   ]);
 
   return (
-    <div className="space-y-5">
+    <div className="container space-y-5 py-6">
       <Link href="/" className="text-sm text-muted">
-        ← Calendar
+        Back to nights
       </Link>
-      <header>
-        <p className="text-xs uppercase tracking-[0.2em] text-court">
-          {GAME_TYPE_LABELS[game.type]}
-        </p>
-        <h1 className="display mt-1 text-4xl">{game.venueName}</h1>
-        <p className="mt-2 text-sm text-muted">{formatGameWhen(game.startsAt)}</p>
+      <header className="space-y-2">
+        <p className="meta">{GAME_TYPE_LABELS[game.type]}</p>
+        <h1 className="display text-display-s">{game.venueName}</h1>
+        <p className="meta">{formatGameWhen(game.startsAt)}</p>
       </header>
-      {admin ? (
+      {viewer.isAdmin ? (
         <GameAdminPanel
           venues={venues}
           game={{
@@ -52,7 +49,10 @@ export default async function GamePage({
           }}
         />
       ) : null}
-      <ClipFeed clips={clips} tags={tags} canManage={admin} />
+      {viewer.canDownload && viewer.downloadsRemaining !== null ? (
+        <p className="meta">{viewer.downloadsRemaining} downloads left this week, in 1080p</p>
+      ) : null}
+      <ClipGrid clips={clips} tags={tags} gameId={game.id} viewer={viewer} canManage={viewer.isAdmin} />
     </div>
   );
 }

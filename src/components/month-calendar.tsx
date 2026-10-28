@@ -29,25 +29,25 @@ export function MonthCalendar({
   const daysWithGames = new Set(games.map((game) => game.day));
 
   return (
-    <section className="rounded-3xl border border-line bg-panel p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+    <section className="well p-4">
       <div className="mb-4 flex items-center justify-between">
         <Link
           href={`/?ym=${prev}`}
-          className="grid h-9 w-9 place-items-center rounded-full border border-line text-lg text-muted hover:text-foreground"
+          className="icon-btn"
           aria-label="Previous month"
         >
           ‹
         </Link>
-        <h1 className="display text-3xl">{formatMonthTitle(yearMonth)}</h1>
+        <h2 className="display text-section">{formatMonthTitle(yearMonth)}</h2>
         <Link
           href={`/?ym=${next}`}
-          className="grid h-9 w-9 place-items-center rounded-full border border-line text-lg text-muted hover:text-foreground"
+          className="icon-btn"
           aria-label="Next month"
         >
           ›
         </Link>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.18em] text-muted">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
           <div key={label} className="py-1">
             {label}
@@ -65,23 +65,23 @@ export function MonthCalendar({
             <Link
               key={key}
               href={`/?ym=${ym}&d=${key}`}
-              className={`flex min-h-11 flex-col items-center justify-center rounded-2xl text-sm ${
+              className={`flex min-h-11 min-w-0 flex-col items-center justify-center rounded-card text-sm ${
                 selected
-                  ? "bg-court text-background"
+                  ? "bg-accent text-accent-ink"
                   : inMonth
-                    ? "bg-panel-2 text-foreground"
-                    : "text-muted/50"
+                    ? "bg-paper-3 text-ink"
+                    : "text-muted/60"
               }`}
             >
               <span>{date.getDate()}</span>
               {hasGames ? (
                 <span
-                  className={`mt-0.5 h-1.5 w-1.5 rounded-full ${
-                    selected ? "bg-background" : "bg-court"
+                  className={`mt-0.5 h-0.5 w-4 rounded-pill ${
+                    selected ? "bg-accent-ink" : "bg-spark"
                   }`}
                 />
               ) : (
-                <span className="mt-0.5 h-1.5 w-1.5" />
+                <span className="mt-0.5 h-0.5 w-4" />
               )}
             </Link>
           );
