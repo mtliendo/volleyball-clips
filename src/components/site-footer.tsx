@@ -7,7 +7,7 @@ export function SiteFooter() {
         <div>
           <p className="font-outlier text-2xl">VB POV</p>
           <p className="meta mt-2 max-w-xs">
-            Meta-glasses volleyball from Focus. Nights, sessions, then the feed.
+            Volleyball clips from Focus. Pick a night and watch.
           </p>
         </div>
         <nav className="flex flex-wrap gap-4 text-sm">

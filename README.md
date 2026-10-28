@@ -1,12 +1,12 @@
 # VB POV
 
-Vertical Meta-glasses volleyball clips for Focus ([vbpov.com](https://vbpov.com)). Public visitors pick a night, open a session grid, then swipe a TikTok-style 9:16 feed. Signed-in viewers can favorite clips and download. Pro ($5/month, Stripe test mode) unlocks unlimited original-quality downloads. Admin is the Auth0 role `admin` on the claim `https://vbpov.com/roles`.
+Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). Public visitors pick a night, open a session grid, then swipe a TikTok-style 9:16 feed. Signed-in viewers can favorite clips and download. Pro ($5/month, Stripe test mode) gets unlimited original-quality downloads. Admin is the Auth0 role `admin` on the claim `https://vbpov.com/roles`.
 
 ## Features
 
 - **Nights:** month calendar (`?ym=YYYY-MM&d=YYYY-MM-DD`) lists that day’s sessions (venue, time, type: open gym, league, tournament).
 - **Session grid:** every ready clip, pins first. Optional pin labels: Longest rally, Best dig, Super spike. Each label at most once per session, max 3 pins.
-- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. Active clip autoplays; neighbors preload. Close returns to the grid.
+- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. That choice sticks for the rest of the feed and in `localStorage`. Neighbors preload. Close returns to the grid.
 - **Accounts:** public Auth0 sign-up (Google + email/password). `users` is keyed by Auth0 `sub`.
 - **Favorites:** heart on the grid and in the feed. `/favorites` lists them.
 - **Watch limit:** anonymous visitors get **7 unique clips per day** (pins count). Tracked server-side with an HttpOnly `vb_vid` cookie plus a hashed IP backstop. Already-watched clips replay. Signed-in users and admins are not limited.

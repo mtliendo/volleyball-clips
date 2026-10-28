@@ -19,7 +19,7 @@ export default async function FavoritesPage() {
     <div className="container space-y-6 py-8">
       <header className="space-y-2">
         <h1 className="display text-display-s">My favorites</h1>
-        <p className="lead">Clips you hearted, ready to open in their session feed.</p>
+        <p className="lead">Clips you saved. Tap one to open it in the feed.</p>
         {viewer.downloadsRemaining !== null ? (
           <p className="meta">{viewer.downloadsRemaining} downloads left this week</p>
         ) : null}

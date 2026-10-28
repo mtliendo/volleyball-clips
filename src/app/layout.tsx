@@ -21,7 +21,7 @@ const onest = Onest({
 
 export const metadata: Metadata = {
   title: "VB POV",
-  description: "Vertical Meta-glasses volleyball clips, browsable by night and session.",
+  description: "Volleyball clips from the glasses. Pick a night, open a session, swipe.",
 };
 
 export const viewport: Viewport = {

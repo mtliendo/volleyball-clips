@@ -18,7 +18,7 @@ export function CheckoutButton({
   if (!signedIn) {
     return (
       <a href={authLoginHref({ returnTo: "/pricing", signup: true })} className="btn btn-spark w-full">
-        Create account, then go Pro
+        Make a free account first
       </a>
     );
   }
@@ -51,7 +51,7 @@ export function CheckoutButton({
   return (
     <div className="space-y-2">
       <button type="button" className="btn btn-spark w-full" disabled={pending} onClick={() => void start()}>
-        {pending ? "Opening Stripe…" : "Get Pro for $5 a month"}
+        {pending ? "Opening Stripe…" : "Pay $5 a month"}
       </button>
       {error ? <p className="text-sm text-error">{error}</p> : null}
     </div>

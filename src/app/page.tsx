@@ -52,16 +52,16 @@ export default async function HomePage({
           </ul>
         ) : null}
         <div className="hero-copy container space-y-5">
-          <h1 className="display text-display">Court from the glasses</h1>
+          <h1 className="display text-display">Clips from the glasses</h1>
           <p className="lead">
-            Vertical Meta-glasses clips, filed by night. Tap a marked day, then a session.
+            Pick a night. Open a session. Swipe the clips.
           </p>
           <div className="flex flex-wrap gap-2">
             <a href="#nights" className="btn btn-primary">
               Open a night
             </a>
             <Link href="/pricing" className="btn btn-ghost">
-              See plans
+              Pricing
             </Link>
           </div>
         </div>
