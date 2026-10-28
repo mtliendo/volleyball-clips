@@ -6,6 +6,8 @@ import { parseYearMonth } from "@/lib/dates";
 import type { Viewer } from "@/lib/entitlements";
 import { listGameClips, listMonthGames } from "@/lib/queries";
 
+export const dynamic = "force-dynamic";
+
 const VERIFY_FAVS_COOKIE = "vb_verify_favs";
 
 const VERIFY_VIEWER: Viewer = {
@@ -24,10 +26,10 @@ const VERIFY_VIEWER: Viewer = {
 };
 
 export default async function VerifyFeedFavoritesPage() {
+  await connection();
   if (process.env.VERIFY_FEED_HARNESS !== "1") {
     notFound();
   }
-  await connection();
 
   const games = await listMonthGames(parseYearMonth("2026-10"));
   const game = games.find((item) => item.readyClipCount >= 3);
