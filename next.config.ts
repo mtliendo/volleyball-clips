@@ -10,13 +10,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
+  experimental: {
+    // Avoid reusing a stale Turbopack CSS cache across production deploys.
+    turbopackFileSystemCacheForBuild: false,
   },
 };
 
