@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/lib/db/seed.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "stripe:setup": "tsx scripts/setup-stripe.ts"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.33.0",
@@ -25,7 +26,8 @@
     "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "stripe": "^23.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

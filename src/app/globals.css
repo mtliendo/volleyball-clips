@@ -1,52 +1,182 @@
+/* Hallmark · shape: night-court calendar into 9:16 grid · genre: editorial · theme: custom · redesign: full · job: listen · idea: "The site is the glasses feed: type slammed over 9:16 court nights" · vibe: dark loud mobile volleyball
+ * paper: oklch(16% 0.018 18) · accent: oklch(62% 0.22 25) · display: Tektur · body: Onest · hero: type plus a snap of real clip posters · nav: wordmark and two actions · footer: mast with pricing and account · imagery: product posters · signature: the 9:16 clip cell
+ * axes: dark/display-condensed/chromatic-red · posture: committed · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V4 · weakest: E, kept chrome tight so the posters carry the night */
+/* Hallmark · waive 23 · committed posture, paper family is the dark court, accent stays on actions and pins */
 @import "tailwindcss";
+@import "./tokens.css";
+@import "./base.css" layer(base);
 
-:root {
-  --background: #07080d;
-  --foreground: #f6f1e8;
-  --muted: #9aa0b3;
-  --court: #ff6a1a;
-  --court-dim: #c44e0d;
-  --panel: #12141c;
-  --panel-2: #1a1d28;
-  --line: #2c3142;
+h1, h2, h3, .display {
+  font-weight: var(--display-weight);
+  letter-spacing: var(--tracking-display);
+  line-height: 1.04;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-court: var(--court);
-  --color-court-dim: var(--court-dim);
-  --color-panel: var(--panel);
-  --color-panel-2: var(--panel-2);
-  --color-line: var(--line);
-  --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-bebas);
+h1 { max-width: 14ch; }
+h2 { max-width: 22ch; }
+h3 { max-width: 28ch; }
+
+.lead {
+  max-width: 34ch;
+  font-size: var(--text-lead);
+  line-height: 1.45;
+  color: var(--color-ink-2);
 }
 
-body {
-  background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(255, 106, 26, 0.16), transparent 55%),
-    linear-gradient(180deg, #0b0d14 0%, var(--background) 40%);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  min-height: 100%;
+.meta {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-muted);
 }
 
-body::before {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: radial-gradient(circle at 50% 20%, black, transparent 75%);
-  opacity: 0.45;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.7rem 1.1rem;
+  border-radius: var(--radius-card);
+  border: var(--rule-hair) solid transparent;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out),
+    border-color var(--dur-micro) var(--ease-out),
+    opacity var(--dur-micro) var(--ease-out);
 }
 
-.display {
-  font-family: var(--font-bebas), var(--font-geist-sans), sans-serif;
-  letter-spacing: 0.04em;
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--color-accent) 86%, var(--color-ink));
+}
+
+.btn-ghost {
+  border-color: var(--color-rule-2);
+  color: var(--color-ink);
+  background: transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-paper-3);
+}
+
+.btn-spark {
+  background: var(--color-spark);
+  color: var(--color-spark-ink);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.chip-active {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.chip-spark {
+  background: var(--color-spark);
+  color: var(--color-spark-ink);
+}
+
+.field {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.7rem 0.85rem;
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.well {
+  background: var(--color-paper-2);
+  border-radius: var(--radius-card);
+}
+
+.rule-top {
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--color-paper) 55%, transparent);
+  color: var(--color-ink);
+}
+
+.icon-btn[aria-pressed="true"] {
+  color: var(--color-accent);
+}
+
+.poster-frame {
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-paper-3);
+}
+
+.poster-frame img,
+.poster-frame video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tape {
+  overflow: hidden;
+  border-block: var(--rule-hair) solid var(--color-rule);
+}
+
+.tape-track {
+  display: flex;
+  gap: var(--space-xl);
+  width: max-content;
+  animation: tape-scroll 28s linear infinite;
+}
+
+.tape:hover .tape-track,
+.tape:focus-within .tape-track {
+  animation-play-state: paused;
+}
+
+@keyframes tape-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
 }

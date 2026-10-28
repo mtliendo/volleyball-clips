@@ -54,22 +54,22 @@ export function VenueManager({ venues }: { venues: Venue[] }) {
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="New venue"
-          className="min-w-0 flex-1 rounded-2xl border border-line bg-panel-2 px-3 py-3 text-sm outline-none focus:border-court"
+          className="field min-w-0 flex-1"
           required
         />
         <button
           type="submit"
-          className="rounded-2xl bg-court px-4 text-sm font-medium text-background"
+          className="btn btn-primary"
         >
           Add
         </button>
       </form>
-      {error ? <p className="text-sm text-court">{error}</p> : null}
+      {error ? <p className="text-sm text-error">{error}</p> : null}
       <ul className="space-y-2">
         {venues.map((venue) => (
           <li
             key={venue.id}
-            className="flex items-center justify-between rounded-2xl border border-line bg-panel px-4 py-3"
+            className="well flex items-center justify-between px-4 py-3"
           >
             <span>{venue.name}</span>
             <div className="flex gap-3 text-sm text-muted">

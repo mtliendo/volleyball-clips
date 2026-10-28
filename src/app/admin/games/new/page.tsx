@@ -8,11 +8,9 @@ export default async function NewGamePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="display text-4xl">New game</h1>
+      <h1 className="display text-section">New session</h1>
       {venues.length === 0 ? (
-        <p className="text-sm text-muted">
-          Add a venue first, then come back to create a game.
-        </p>
+        <p className="meta">Add a venue first, then come back to create a session.</p>
       ) : (
         <GameForm venues={venues} />
       )}

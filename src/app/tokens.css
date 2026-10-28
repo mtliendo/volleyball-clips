@@ -1,0 +1,87 @@
+@theme static {
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: 2.441rem;
+  --text-display-s: clamp(2.25rem, 8vw + 0.4rem, 3.75rem);
+  --text-display: clamp(2.75rem, 11vw + 0.4rem, 5.5rem);
+  --text-section: clamp(1.75rem, 4vw + 0.6rem, 3rem);
+  --text-title: clamp(1.25rem, 1.2vw + 0.8rem, 1.625rem);
+  --text-lead: clamp(1.0625rem, 0.4vw + 0.95rem, 1.25rem);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --color-error: oklch(64% 0.19 22);
+  --color-success: oklch(72% 0.14 145);
+  --color-paper: oklch(16% 0.018 18);
+  --color-paper-2: oklch(20% 0.022 18);
+  --color-paper-3: oklch(25% 0.026 18);
+  --color-ink: oklch(96% 0.012 88);
+  --color-ink-2: oklch(86% 0.016 80);
+  --color-muted: oklch(70% 0.022 50);
+  --color-rule: oklch(34% 0.03 18);
+  --color-rule-2: oklch(46% 0.04 20);
+  --color-accent: oklch(62% 0.22 25);
+  --color-accent-ink: oklch(16% 0.04 20);
+  --color-focus: oklch(68% 0.2 25);
+  --color-spark: oklch(88% 0.18 118);
+  --color-spark-ink: oklch(22% 0.05 120);
+  --font-display: var(--font-tektur), "Tektur", ui-sans-serif, sans-serif;
+  --font-body: var(--font-onest), "Onest", ui-sans-serif, sans-serif;
+  --font-outlier: var(--font-display);
+  --radius-card: 8px;
+  --radius-pill: 999px;
+  --shadow-card: none;
+  --tracking-display: -0.015em;
+}
+:root {
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --space-4xl: 144px;
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+  --container: 72rem;
+  --gutter: 24px;
+  --gap-columns: 24px;
+  --section-gap-s: 72px;
+  --section-gap: 96px;
+  --section-gap-l: 120px;
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+  --rule-hair: 1px;
+  --display-weight: 700;
+}
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 24px;
+    --section-gap-s: 64px;
+    --section-gap: 80px;
+    --section-gap-l: 96px;
+  }
+}
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+    --section-gap-s: 56px;
+    --section-gap: 72px;
+    --section-gap-l: 88px;
+    --gap-columns: 16px;
+  }
+}

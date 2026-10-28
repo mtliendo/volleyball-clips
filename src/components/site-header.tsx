@@ -1,36 +1,47 @@
 import Link from "next/link";
 import { getSession } from "@/lib/admin";
+import { authLoginHref } from "@/lib/auth-urls";
 import { isAuth0Configured } from "@/lib/env";
+import { isAdmin } from "@/lib/roles";
 
 export async function SiteHeader() {
   const session = await getSession();
   const authReady = isAuth0Configured();
+  const admin = isAdmin(session?.user);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line/80 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 w-full max-w-lg items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-court text-xs font-bold text-background">
-            V
-          </span>
-          <span className="display text-xl leading-none tracking-wide">
-            Focus clips
-          </span>
+    <header className="sticky top-0 z-(--z-sticky-nav) border-b border-rule bg-paper/88 backdrop-blur-md">
+      <div className="container flex h-14 items-center justify-between gap-3">
+        <Link href="/" className="font-outlier text-xl leading-none">
+          VB POV
         </Link>
-        <nav className="flex items-center gap-3 text-sm text-muted">
+        <nav className="flex items-center gap-3 text-sm">
+          <Link href="/pricing" className="text-muted hover:text-ink">
+            Pricing
+          </Link>
           {session ? (
             <>
-              <Link href="/admin" className="hover:text-foreground">
-                Admin
+              <Link href="/favorites" className="text-muted hover:text-ink">
+                Favorites
               </Link>
-              <a href="/auth/logout" className="hover:text-foreground">
+              {admin ? (
+                <Link href="/admin" className="text-muted hover:text-ink">
+                  Admin
+                </Link>
+              ) : null}
+              <a href="/auth/logout" className="text-muted hover:text-ink">
                 Sign out
               </a>
             </>
           ) : authReady ? (
-            <a href="/auth/login?returnTo=/admin" className="hover:text-foreground">
-              Admin
-            </a>
+            <>
+              <a href={authLoginHref({ returnTo: "/" })} className="text-muted hover:text-ink">
+                Sign in
+              </a>
+              <a href={authLoginHref({ returnTo: "/", signup: true })} className="btn btn-primary !min-h-9 !px-3">
+                Create account
+              </a>
+            </>
           ) : null}
         </nav>
       </div>
@@ -39,7 +50,5 @@ export async function SiteHeader() {
 }
 
 export function SiteHeaderFallback() {
-  return (
-    <header className="sticky top-0 z-20 h-14 border-b border-line/80 bg-background/80" />
-  );
+  return <header className="sticky top-0 z-(--z-sticky-nav) h-14 border-b border-rule bg-paper" />;
 }

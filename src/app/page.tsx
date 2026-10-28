@@ -1,9 +1,13 @@
 import { TZDate } from "@date-fns/tz";
+import Link from "next/link";
 import { connection } from "next/server";
 import { GameList } from "@/components/game-list";
 import { MonthCalendar } from "@/components/month-calendar";
+import { cdnUrl } from "@/lib/cdn";
 import { APP_TIMEZONE, dayKey, formatGameDay, parseYearMonth } from "@/lib/dates";
-import { listMonthGames } from "@/lib/queries";
+import { listMonthGames, listRecentReadyPosters } from "@/lib/queries";
+
+const TAPE = ["open gym", "league", "tournament", "spike", "dig", "rally"];
 
 export default async function HomePage({
   searchParams,
@@ -15,47 +19,87 @@ export default async function HomePage({
     await connection();
   }
   const yearMonth = parseYearMonth(ym);
-  const games = await listMonthGames(yearMonth);
-  const selectedDay =
-    d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
+  const [games, posters] = await Promise.all([
+    listMonthGames(yearMonth),
+    listRecentReadyPosters(8),
+  ]);
+  const selectedDay = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
   const dayGames = selectedDay
     ? games.filter((game) => dayKey(game.startsAt) === selectedDay)
     : [];
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted">
-        Meta-glasses volleyball, filed by day. Tap a date with a mark to see that
-        night&apos;s games.
-      </p>
-      <MonthCalendar
-        yearMonth={yearMonth}
-        selectedDay={selectedDay}
-        games={games.map((game) => ({ id: game.id, day: dayKey(game.startsAt) }))}
-      />
-      {selectedDay ? (
-        <section className="space-y-3">
-          <h2 className="display text-3xl">
-            {formatGameDay(
-              new TZDate(
-                Number(selectedDay.slice(0, 4)),
-                Number(selectedDay.slice(5, 7)) - 1,
-                Number(selectedDay.slice(8, 10)),
-                12,
-                APP_TIMEZONE,
-              ),
-            )}
-          </h2>
-          <GameList
-            games={dayGames}
-            emptyLabel="No games on this day."
-          />
-        </section>
-      ) : (
-        <p className="text-center text-sm text-muted">
-          Select a day to list its games.
-        </p>
-      )}
-    </div>
+    <>
+      <section className="container grid gap-8 pt-8 pb-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
+        <div className="space-y-5">
+          <h1 className="display text-display">Court from the glasses</h1>
+          <p className="lead">
+            Vertical Meta-glasses clips, filed by night. Tap a marked day, then a session.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a href="#nights" className="btn btn-primary">
+              Open a night
+            </a>
+            <Link href="/pricing" className="btn btn-ghost">
+              See plans
+            </Link>
+          </div>
+        </div>
+        {posters.length > 0 ? (
+          <ul className="flex gap-2 overflow-x-auto pb-1">
+            {posters.map((poster) => {
+              const src = cdnUrl(poster.posterKey);
+              return (
+                <li key={poster.id} className="min-w-0 shrink-0">
+                  <Link
+                    href={`/games/${poster.gameId}/watch/${poster.id}`}
+                    className="poster-frame block aspect-[9/16] w-28 sm:w-32"
+                  >
+                    {src ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={src} alt="" />
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </section>
+
+      <div className="tape">
+        <div className="tape-track px-4 py-3 text-sm text-muted">
+          {[...TAPE, ...TAPE].map((word, index) => (
+            <span key={`${word}-${index}`}>{word}</span>
+          ))}
+        </div>
+      </div>
+
+      <div id="nights" className="container space-y-6 pt-10">
+        <MonthCalendar
+          yearMonth={yearMonth}
+          selectedDay={selectedDay}
+          games={games.map((game) => ({ id: game.id, day: dayKey(game.startsAt) }))}
+        />
+        {selectedDay ? (
+          <section className="space-y-3">
+            <h2 className="display text-section">
+              {formatGameDay(
+                new TZDate(
+                  Number(selectedDay.slice(0, 4)),
+                  Number(selectedDay.slice(5, 7)) - 1,
+                  Number(selectedDay.slice(8, 10)),
+                  12,
+                  APP_TIMEZONE,
+                ),
+              )}
+            </h2>
+            <GameList games={dayGames} emptyLabel="No sessions on this day." />
+          </section>
+        ) : (
+          <p className="text-center text-sm text-muted">Select a day to list its sessions.</p>
+        )}
+      </div>
+    </>
   );
 }

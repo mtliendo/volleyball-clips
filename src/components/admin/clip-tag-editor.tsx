@@ -35,8 +35,8 @@ export function ClipTagEditor({
 
   if (clips.length === 0) {
     return (
-      <p className="rounded-3xl border border-dashed border-line bg-panel/60 px-4 py-8 text-center text-sm text-muted">
-        No clips on this game yet.
+      <p className="well px-4 py-8 text-center text-sm text-muted">
+        No clips on this session yet.
       </p>
     );
   }
@@ -48,7 +48,7 @@ export function ClipTagEditor({
         const poster = cdnUrl(clip.posterKey);
 
         return (
-          <li key={clip.id} className="rounded-3xl border border-line bg-panel p-4">
+          <li key={clip.id} className="well p-4">
             <div className="flex gap-3">
               <div className="h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-black">
                 {poster ? (
@@ -62,7 +62,7 @@ export function ClipTagEditor({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="rounded-full bg-panel-2 px-2 py-0.5 text-xs text-muted">
+                  <span className="chip">
                     {CLIP_STATUS_LABELS[clip.status]}
                   </span>
                   <div className="flex items-center gap-3">
@@ -74,11 +74,7 @@ export function ClipTagEditor({
                   {tags.map((tag) => (
                     <label
                       key={tag.id}
-                      className={`rounded-full px-2.5 py-1 text-xs ${
-                        selected.has(tag.id)
-                          ? "bg-court text-background"
-                          : "bg-panel-2 text-muted"
-                      }`}
+                      className={`chip ${selected.has(tag.id) ? "chip-active" : ""}`}
                     >
                       <input
                         type="checkbox"

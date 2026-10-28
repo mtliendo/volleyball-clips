@@ -63,7 +63,7 @@ export function GameForm({
           name="venueId"
           defaultValue={game?.venueId}
           required
-          className="w-full rounded-2xl border border-line bg-panel-2 px-3 py-3 outline-none focus:border-court"
+          className="field"
         >
           <option value="">Select a venue</option>
           {venues.map((venue) => (
@@ -80,7 +80,7 @@ export function GameForm({
           name="startsAt"
           defaultValue={game?.startsAtLocal}
           required
-          className="w-full rounded-2xl border border-line bg-panel-2 px-3 py-3 outline-none focus:border-court"
+          className="field"
         />
       </label>
       <label className="block space-y-2 text-sm">
@@ -88,7 +88,7 @@ export function GameForm({
         <select
           name="type"
           defaultValue={game?.type ?? "open_gym"}
-          className="w-full rounded-2xl border border-line bg-panel-2 px-3 py-3 outline-none focus:border-court"
+          className="field"
         >
           {TYPES.map((type) => (
             <option key={type} value={type}>
@@ -97,11 +97,11 @@ export function GameForm({
           ))}
         </select>
       </label>
-      {error ? <p className="text-sm text-court">{error}</p> : null}
+      {error ? <p className="text-sm text-error">{error}</p> : null}
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-2xl bg-court py-3 text-sm font-medium text-background disabled:opacity-60"
+        className="btn btn-primary w-full"
       >
         {pending ? "Saving…" : game ? "Save game" : "Create game"}
       </button>

@@ -16,6 +16,10 @@ export const ALLOWED_VIDEO_TYPES = new Set([
   "video/mp2t",
 ]);
 
+export function appBaseUrl() {
+  return (process.env.APP_BASE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+}
+
 export function isDatabaseConfigured() {
   return Boolean(process.env.DATABASE_URL);
 }
@@ -31,4 +35,12 @@ export function isAuth0Configured() {
 
 export function isS3Configured() {
   return Boolean(process.env.AWS_S3_BUCKET && process.env.AWS_REGION);
+}
+
+export function isStripeConfigured() {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID);
+}
+
+export function isStripeWebhookConfigured() {
+  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
 }
