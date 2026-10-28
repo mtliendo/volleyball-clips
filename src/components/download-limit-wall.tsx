@@ -17,7 +17,7 @@ export function DownloadLimitWall({
       <div className="mx-auto w-full max-w-sm space-y-4">
         <h2 className="display text-section">That is three for the week</h2>
         <p className="lead">
-          Those 1080p files are used up. Pro is $5 a month for the originals, with no weekly cap.
+          You&apos;ve used your 3 free downloads this week. Pro is $5 a month for unlimited downloads and the original files.
         </p>
         {when ? <p className="meta">Another one frees up {when}.</p> : null}
         <div className="flex flex-col gap-2">
