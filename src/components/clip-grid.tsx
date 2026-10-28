@@ -66,7 +66,7 @@ export function ClipGrid({
           No clips match that tag.
         </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <ul className="-mx-4 grid grid-cols-2 gap-1 sm:mx-0 sm:grid-cols-3 sm:gap-2">
           {filtered.map((clip) => {
             const poster = cdnUrl(clip.posterKey);
             const href = `/games/${gameId}/watch/${clip.id}${
@@ -86,17 +86,17 @@ export function ClipGrid({
                       </div>
                     )}
                     {clip.pin ? (
-                      <span className="chip-spark absolute top-2 left-2 text-xs">
+                      <span className="chip-spark absolute top-2 left-2">
                         {clip.pin.label ? PIN_LABEL_COPY[clip.pin.label] : "Pinned"}
                       </span>
                     ) : null}
                     {clip.durationMs ? (
-                      <span className="absolute right-2 bottom-2 rounded-pill bg-paper/75 px-2 py-0.5 text-xs">
+                      <span className="absolute right-2 bottom-2 rounded-card bg-paper/80 px-2 py-0.5 text-xs">
                         {formatDuration(clip.durationMs)}
                       </span>
                     ) : null}
                   </Link>
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-1 px-1 sm:px-0">
                     <div className="min-w-0 truncate text-xs text-muted">
                       {clip.tags.map((tag) => tag.name).join(", ") || "Untagged"}
                     </div>

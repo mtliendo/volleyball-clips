@@ -1,6 +1,4 @@
 import Link from "next/link";
-
-export const dynamic = "force-dynamic";
 import { requireUserPage } from "@/lib/admin";
 import { cdnUrl } from "@/lib/cdn";
 import { formatGameWhen } from "@/lib/dates";
@@ -8,6 +6,8 @@ import { getViewer } from "@/lib/entitlements";
 import { PIN_LABEL_COPY } from "@/lib/labels";
 import { listFavoriteClips } from "@/lib/queries";
 import { ensureAppUser } from "@/lib/users";
+
+export const dynamic = "force-dynamic";
 
 export default async function FavoritesPage() {
   const session = await requireUserPage("/favorites");
@@ -42,7 +42,7 @@ export default async function FavoritesPage() {
                       <img src={poster} alt="" />
                     ) : null}
                     {clip.pin?.label ? (
-                      <span className="chip-spark absolute top-2 left-2 text-xs">
+                      <span className="chip-spark absolute top-2 left-2">
                         {PIN_LABEL_COPY[clip.pin.label]}
                       </span>
                     ) : null}

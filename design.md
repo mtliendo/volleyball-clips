@@ -7,6 +7,8 @@ The locked system. Every Hallmark run reads this first and pages share it. Chang
 - Shape of the first page: night-court calendar into 9:16 grid
 - Theme: custom (vibe: "dark loud mobile volleyball")
 - Axes: dark/display-condensed/chromatic-red · posture: committed
+- Hallmark: craft only (tokens, type scale, spacing, focus, reduced motion, no tracked-caps labels)
+- Inspo: visual source. Synthesize. Do not clone a site, and do not look like Hassan’s own work.
 
 ## Tokens
 `src/app/tokens.css` is the source of truth. The roles:
@@ -26,7 +28,16 @@ The locked system. Every Hallmark run reads this first and pages share it. Chang
 }
 ```
 
-Visual notes (Inspo as source, Hallmark for craft): General Condition’s electric red on a dark grid informed the accent and the poster rail; Beard Meats Food’s high-contrast roar informed the display size and charcoal night; Artek’s featured pricing block informed the Pro card; Audius’s simple dark stacks informed Guest and Free; Audocph’s highlighted strip informed the originals callout.
+## Inspo map
+Composition only. Palettes and type are rewritten for a night gym.
+
+- **generalcondition-com** · home type slam and electric red signal on a dark field. No grid paper, no cartoons.
+- **beardmeatsfood-co-uk** · display size and spark lime reserved for pins and Pro. No comic marks.
+- **mikkisindhunata-com** · type over a photographic stage. Here the stage is a staggered rack of real 9:16 posters.
+- **music-youtube-com** · dark discovery grid and filter chips. Cells stay 9:16, not squares.
+- **artek-fi** · Pro as the featured product in the pricing set.
+- **audius-co** · quiet dark stacks for Guest and Free.
+- **audocph-com** · the originals strip on the Pro card (`~1400 × 1900 at 120 fps`).
 
 ## Controls
 - Primary: accent fill · 8px · 44px

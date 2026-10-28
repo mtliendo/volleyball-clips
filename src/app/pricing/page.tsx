@@ -22,7 +22,7 @@ export default async function PricingPage({
         ) : null}
       </header>
 
-      <ol className="grid gap-4 lg:grid-cols-3">
+      <ol className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.2fr)]">
         <li className="well flex flex-col gap-4 p-5">
           <p className="meta">Guest</p>
           <h2 className="display text-section">$0</h2>
@@ -50,7 +50,7 @@ export default async function PricingPage({
             </a>
           )}
         </li>
-        <li className="flex flex-col gap-4 rounded-card bg-accent p-5 text-accent-ink">
+        <li className="flex flex-col gap-4 rounded-card bg-accent p-6 text-accent-ink lg:min-h-full">
           <p className="text-sm">Pro</p>
           <h2 className="display text-section">$5 / month</h2>
           <p>Unlimited downloads of the full-quality original.</p>

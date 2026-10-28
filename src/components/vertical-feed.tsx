@@ -170,6 +170,9 @@ export function VerticalFeed({
         })}
       </div>
 
+      <div className="feed-scrim-top" />
+      <div className="feed-scrim-bottom" />
+
       <div className="pointer-events-none absolute inset-x-0 top-0 z-(--z-raised) flex items-start justify-between p-3">
         <Link href={closeHref} className="pointer-events-auto btn btn-ghost !min-h-10">
           Close

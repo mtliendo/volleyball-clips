@@ -27,13 +27,15 @@ Vertical Meta-glasses volleyball clips for Focus ([vbpov.com](https://vbpov.com)
 
 ## Design system
 
-Hallmark is used for craft (tokens, type scale, spacing, focus, reduced motion). The look is original: a dark, loud, mobile-first night court. Inspo references that informed it (not cloned):
+Hallmark is used for craft only (tokens, type scale, spacing, focus, reduced motion). The look is original: a dark, loud, mobile-first night court. Inspo is the visual source; nothing is cloned, and the site is not meant to resemble Hassan’s own work.
 
-- **General Condition** (dark / loud / mobile): electric red on a dark media grid → accent + poster rail
-- **Beard Meats Food** (podcast): chunky high-contrast type on charcoal → display size and night paper
-- **Artek** pricing: featured / warm block → Pro card
-- **Audius** pricing: simple dark stacks → Guest and Free
-- **Audocph** pricing: highlighted strip → originals callout
+- **generalcondition-com**: electric red signal and type slam on the home hero
+- **beardmeatsfood-co-uk**: display size and spark lime on pins / Pro
+- **mikkisindhunata-com**: type over a photographic stage (here a rack of 9:16 posters)
+- **music-youtube-com**: dark session grid and filter chips
+- **artek-fi**: Pro as the featured pricing product
+- **audius-co**: quiet Guest and Free stacks
+- **audocph-com**: originals callout on the Pro card
 
 Tokens live in `src/app/tokens.css`. Display is Tektur, body is Onest. Paper is a red-tinted night (`oklch(16% 0.018 18)`), accent is electric red used as a fill on actions, spark lime is reserved for pins and Pro.
 

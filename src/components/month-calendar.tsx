@@ -76,12 +76,12 @@ export function MonthCalendar({
               <span>{date.getDate()}</span>
               {hasGames ? (
                 <span
-                  className={`mt-0.5 h-1.5 w-1.5 rounded-pill ${
+                  className={`mt-0.5 h-0.5 w-4 rounded-pill ${
                     selected ? "bg-accent-ink" : "bg-spark"
                   }`}
                 />
               ) : (
-                <span className="mt-0.5 h-1.5 w-1.5" />
+                <span className="mt-0.5 h-0.5 w-4" />
               )}
             </Link>
           );

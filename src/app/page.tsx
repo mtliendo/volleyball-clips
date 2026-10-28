@@ -21,7 +21,7 @@ export default async function HomePage({
   const yearMonth = parseYearMonth(ym);
   const [games, posters] = await Promise.all([
     listMonthGames(yearMonth),
-    listRecentReadyPosters(8),
+    listRecentReadyPosters(6),
   ]);
   const selectedDay = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
   const dayGames = selectedDay
@@ -30,8 +30,28 @@ export default async function HomePage({
 
   return (
     <>
-      <section className="container grid gap-8 pt-8 pb-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-end">
-        <div className="space-y-5">
+      <section className="hero-court">
+        {posters.length > 0 ? (
+          <ul className="hero-stack">
+            {posters.map((poster) => {
+              const src = cdnUrl(poster.posterKey);
+              return (
+                <li key={poster.id} className="min-w-0 shrink-0">
+                  <Link
+                    href={`/games/${poster.gameId}/watch/${poster.id}`}
+                    className="poster-frame"
+                  >
+                    {src ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={src} alt="" />
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+        <div className="hero-copy container space-y-5">
           <h1 className="display text-display">Court from the glasses</h1>
           <p className="lead">
             Vertical Meta-glasses clips, filed by night. Tap a marked day, then a session.
@@ -45,26 +65,6 @@ export default async function HomePage({
             </Link>
           </div>
         </div>
-        {posters.length > 0 ? (
-          <ul className="flex gap-2 overflow-x-auto pb-1">
-            {posters.map((poster) => {
-              const src = cdnUrl(poster.posterKey);
-              return (
-                <li key={poster.id} className="min-w-0 shrink-0">
-                  <Link
-                    href={`/games/${poster.gameId}/watch/${poster.id}`}
-                    className="poster-frame block aspect-[9/16] w-28 sm:w-32"
-                  >
-                    {src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={src} alt="" />
-                    ) : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
       </section>
 
       <div className="tape">
