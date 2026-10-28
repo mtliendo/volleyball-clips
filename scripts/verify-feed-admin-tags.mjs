@@ -174,6 +174,7 @@ async function main() {
     await page.waitForFunction(() => {
       return document.querySelector("[data-pin-badge]")?.getAttribute("data-pin-badge") === "longest_rally";
     });
+    await page.locator("[data-pin-sheet] >> text=Done").click();
     console.log("ok moved longest rally to clip 2");
 
     await swipeBy(page, -1);
