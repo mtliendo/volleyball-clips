@@ -160,28 +160,6 @@ h3 { max-width: 28ch; }
   white-space: nowrap;
 }
 
-.download-limit {
-  position: fixed;
-  left: var(--gutter);
-  right: var(--gutter);
-  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  z-index: var(--z-toast);
-  display: grid;
-  gap: 0.75rem;
-  max-width: 28rem;
-  margin-inline: auto;
-  padding: 1rem;
-  border: var(--rule-hair) solid var(--color-rule);
-  border-radius: var(--radius-card);
-  background: var(--color-paper-2);
-  color: var(--color-ink);
-}
-
-.download-limit a {
-  color: var(--color-accent);
-  text-decoration: underline;
-}
-
 .verify-url {
   pointer-events: none;
   position: fixed;

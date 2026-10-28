@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DeleteClipButton } from "@/components/admin/delete-clip-button";
 import { DownloadButton } from "@/components/download-button";
+import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
 import { cdnUrl } from "@/lib/cdn";
 import { formatDuration } from "@/lib/dates";
@@ -26,6 +27,7 @@ export function ClipGrid({
 }) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
+  const [downloadLimit, setDownloadLimit] = useState<{ nextAt: string | null } | null>(null);
 
   const filtered = useMemo(() => {
     if (!activeTag) return clips;
@@ -115,7 +117,9 @@ export function ClipGrid({
                         remaining={downloadsRemaining}
                         returnTo={href}
                         compact
+                        nextDownloadAt={viewer.nextDownloadAt}
                         onRemainingChange={setDownloadsRemaining}
+                        onLimit={(info) => setDownloadLimit(info)}
                       />
                       {canManage ? <DeleteClipButton clipId={clip.id} /> : null}
                     </div>
@@ -126,6 +130,11 @@ export function ClipGrid({
           })}
         </ul>
       )}
+      {downloadLimit ? (
+        <div className="fixed inset-0 z-(--z-modal)">
+          <DownloadLimitWall nextAt={downloadLimit.nextAt} onBack={() => setDownloadLimit(null)} />
+        </div>
+      ) : null}
     </div>
   );
 }

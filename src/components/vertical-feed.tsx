@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DownloadButton } from "@/components/download-button";
+import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
 import { FeedTagSheet, type CatalogTag } from "@/components/feed-tag-sheet";
 import { SignupWall } from "@/components/signup-wall";
@@ -108,6 +109,7 @@ export function VerticalFeed({
   catalogTags = [],
   viewer,
   closeHref,
+  forceWall = null,
 }: {
   clips: PublicClip[];
   startId: string;
@@ -116,6 +118,7 @@ export function VerticalFeed({
   catalogTags?: CatalogTag[];
   viewer: Viewer;
   closeHref: string;
+  forceWall?: "watch" | "download" | null;
 }) {
   const startIndex = Math.max(0, clips.findIndex((clip) => clip.id === startId));
   const [activeIndex, setActiveIndex] = useState(startIndex);
@@ -148,6 +151,9 @@ export function VerticalFeed({
   }
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
+  const [downloadLimit, setDownloadLimit] = useState<{ nextAt: string | null } | null>(() =>
+    forceWall === "download" ? { nextAt: viewer.nextDownloadAt } : null,
+  );
   const [tagPending, setTagPending] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
@@ -349,7 +355,7 @@ export function VerticalFeed({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (tagSheetOpen) return;
+      if (tagSheetOpen || downloadLimit) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       if (isEditableTarget(event.target)) return;
 
@@ -379,13 +385,14 @@ export function VerticalFeed({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [playIndex, syncUrl, tagSheetOpen]);
+  }, [downloadLimit, playIndex, syncUrl, tagSheetOpen]);
 
   const blocked =
-    !viewer.watchUnlimited &&
-    Boolean(active) &&
-    watchState?.clipId === active?.id &&
-    watchState.blocked;
+    forceWall === "watch" ||
+    (!viewer.watchUnlimited &&
+      Boolean(active) &&
+      watchState?.clipId === active?.id &&
+      watchState.blocked);
 
   function setSound(next: boolean) {
     const player = playerRef.current;
@@ -614,12 +621,15 @@ export function VerticalFeed({
             remaining={downloadsRemaining}
             returnTo={`/games/${gameId}/watch/${active.id}`}
             compact
+            nextDownloadAt={viewer.nextDownloadAt}
+            startLimitOpen={forceWall === "download"}
             onRemainingChange={setDownloadsRemaining}
+            onLimit={(info) => setDownloadLimit(info)}
           />
         </div>
       </div>
 
-      {!soundOn && !blocked ? (
+      {!soundOn && !blocked && !downloadLimit ? (
         <button
           type="button"
           className="pointer-events-auto absolute bottom-5 left-4 z-(--z-raised) chip"
@@ -632,6 +642,12 @@ export function VerticalFeed({
       {blocked ? (
         <div className="absolute inset-0 z-(--z-modal)">
           <SignupWall returnTo={`/games/${gameId}/watch/${active.id}`} />
+        </div>
+      ) : null}
+
+      {downloadLimit ? (
+        <div className="absolute inset-0 z-(--z-modal)">
+          <DownloadLimitWall nextAt={downloadLimit.nextAt} onBack={() => setDownloadLimit(null)} />
         </div>
       ) : null}
 

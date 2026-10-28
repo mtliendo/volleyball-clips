@@ -11,7 +11,13 @@ import {
 } from "@/lib/download";
 import { hasProAccess } from "@/lib/entitlements";
 import { isDatabaseConfigured } from "@/lib/env";
-import { countDownloadsThisWeek, hasRecentDownload, recordDownload } from "@/lib/limits";
+import {
+  countDownloadsThisWeek,
+  hasRecentDownload,
+  nextDownloadAtFromOldest,
+  oldestDownloadThisWeek,
+  recordDownload,
+} from "@/lib/limits";
 import { getReadyClip } from "@/lib/queries";
 import { isAdmin } from "@/lib/roles";
 import { ensureAppUser } from "@/lib/users";
@@ -19,11 +25,14 @@ import { ensureAppUser } from "@/lib/users";
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
-const LIMIT_BODY = {
-  error: "Weekly download limit reached",
-  remaining: 0,
-  upgrade: true,
-} as const;
+function limitBody(nextAt: string | null = null) {
+  return {
+    error: "Weekly download limit reached",
+    remaining: 0,
+    upgrade: true,
+    nextAt,
+  };
+}
 
 function attachmentResponse(
   body: BodyInit,
@@ -52,7 +61,8 @@ async function verifyHarnessDownload(id: string) {
   const stored = Number(jar.get(VERIFY_DOWNLOADS_COOKIE)?.value ?? "3");
   const remaining = Number.isFinite(stored) ? stored : 3;
   if (remaining <= 0) {
-    return NextResponse.json(LIMIT_BODY, { status: 402 });
+    const nextAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+    return NextResponse.json(limitBody(nextAt), { status: 402 });
   }
 
   const next = remaining - 1;
@@ -116,7 +126,9 @@ export async function GET(
   if (!pro && !recent) {
     const used = await countDownloadsThisWeek(appUser.id);
     if (used >= FREE_DOWNLOADS_PER_WEEK) {
-      return NextResponse.json(LIMIT_BODY, { status: 402 });
+      const oldest = await oldestDownloadThisWeek(appUser.id);
+      const next = nextDownloadAtFromOldest(oldest);
+      return NextResponse.json(limitBody(next ? next.toISOString() : null), { status: 402 });
     }
   }
 

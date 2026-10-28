@@ -3,7 +3,7 @@ import "server-only";
 import { getSession } from "./admin";
 import { ANON_WATCH_LIMIT, FREE_DOWNLOADS_PER_WEEK } from "./db/schema";
 import { isAuth0Configured, isStripeConfigured } from "./env";
-import { countDownloadsThisWeek } from "./limits";
+import { countDownloadsThisWeek, nextDownloadAtFromOldest, oldestDownloadThisWeek } from "./limits";
 import { isAdmin } from "./roles";
 import { ensureAppUser, type AppUser } from "./users";
 
@@ -15,6 +15,7 @@ export type Viewer = {
   canFavorite: boolean;
   canDownload: boolean;
   downloadsRemaining: number | null;
+  nextDownloadAt: string | null;
   stripeReady: boolean;
   authReady: boolean;
   email: string | null;
@@ -45,6 +46,10 @@ export async function getViewer(): Promise<Viewer> {
   const appUser = session ? await ensureAppUser(session.user) : null;
   const pro = admin || hasProAccess(appUser);
   const used = appUser && !pro ? await countDownloadsThisWeek(appUser.id) : 0;
+  const remaining = pro || admin ? null : Math.max(0, FREE_DOWNLOADS_PER_WEEK - used);
+  const oldest =
+    appUser && remaining === 0 ? await oldestDownloadThisWeek(appUser.id) : null;
+  const nextDownload = nextDownloadAtFromOldest(oldest);
 
   return {
     signedIn: Boolean(session),
@@ -53,7 +58,8 @@ export async function getViewer(): Promise<Viewer> {
     watchUnlimited: Boolean(session) || admin,
     canFavorite: Boolean(appUser),
     canDownload: Boolean(appUser),
-    downloadsRemaining: pro || admin ? null : Math.max(0, FREE_DOWNLOADS_PER_WEEK - used),
+    downloadsRemaining: remaining,
+    nextDownloadAt: nextDownload ? nextDownload.toISOString() : null,
     stripeReady: isStripeConfigured(),
     authReady: isAuth0Configured(),
     email: appUser?.email ?? session?.user.email ?? null,

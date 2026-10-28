@@ -16,14 +16,14 @@ export const dynamic = "force-dynamic";
 export default async function VerifyFeedKeysPage({
   searchParams,
 }: {
-  searchParams: Promise<{ as?: string; left?: string }>;
+  searchParams: Promise<{ as?: string; left?: string; wall?: string; next?: string }>;
 }) {
   await connection();
   if (process.env.VERIFY_FEED_HARNESS !== "1") {
     notFound();
   }
 
-  const { as, left } = await searchParams;
+  const { as, left, wall, next } = await searchParams;
   const clips = verifyClips();
   const jar = await cookies();
   const cookieLeft = Number(jar.get(VERIFY_DOWNLOADS_COOKIE)?.value);
@@ -32,7 +32,15 @@ export default async function VerifyFeedKeysPage({
     ? fromQuery
     : Number.isFinite(cookieLeft)
       ? cookieLeft
-      : 3;
+      : wall === "download"
+        ? 0
+        : 3;
+  const nextDownloadAt =
+    next && !Number.isNaN(Date.parse(next))
+      ? new Date(next).toISOString()
+      : remaining === 0
+        ? "2026-11-06T18:00:00.000Z"
+        : null;
 
   return (
     <div data-verify-feed="keys">
@@ -49,10 +57,14 @@ export default async function VerifyFeedKeysPage({
         viewer={verifyViewer({
           isAdmin: as === "admin",
           isPro: as === "pro",
+          signedIn: as !== "guest",
+          watchUnlimited: wall !== "watch" && as !== "guest",
           canDownload: as !== "guest",
           downloadsRemaining: as === "pro" ? null : remaining,
+          nextDownloadAt,
         })}
         closeHref={`/games/${VERIFY_GAME_ID}`}
+        forceWall={wall === "watch" || wall === "download" ? wall : null}
       />
       <VerifyUrl />
     </div>

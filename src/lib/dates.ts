@@ -82,6 +82,21 @@ export function formatMonthTitle(date: Date) {
   }).format(date);
 }
 
+export function formatNextDownloadWhen(at: Date, now = new Date()) {
+  const then = dayKey(at);
+  if (then <= dayKey(now)) {
+    return "later today";
+  }
+
+  const zone = new TZDate(now, APP_TIMEZONE);
+  const tomorrow = new TZDate(zone.getFullYear(), zone.getMonth(), zone.getDate() + 1, APP_TIMEZONE);
+  if (then === format(tomorrow, "yyyy-MM-dd")) {
+    return "tomorrow";
+  }
+
+  return format(new TZDate(at, APP_TIMEZONE), "EEEE");
+}
+
 export function formatDuration(durationMs?: number | null) {
   if (!durationMs || durationMs < 0) {
     return "";

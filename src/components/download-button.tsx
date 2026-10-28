@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { authLoginHref } from "@/lib/auth-urls";
 import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/lib/download";
 
@@ -12,7 +12,10 @@ export function DownloadButton({
   remaining,
   returnTo,
   compact = false,
+  nextDownloadAt = null,
+  startLimitOpen = false,
   onRemainingChange,
+  onLimit,
 }: {
   clipId: string;
   canDownload: boolean;
@@ -20,10 +23,14 @@ export function DownloadButton({
   remaining: number | null;
   returnTo: string;
   compact?: boolean;
+  nextDownloadAt?: string | null;
+  startLimitOpen?: boolean;
   onRemainingChange?: (remaining: number | null) => void;
+  onLimit?: (info: { nextAt: string | null }) => void;
 }) {
   const [pending, setPending] = useState(false);
-  const [limitOpen, setLimitOpen] = useState(false);
+  const [limitOpen, setLimitOpen] = useState(startLimitOpen);
+  const [limitNextAt, setLimitNextAt] = useState<string | null>(nextDownloadAt);
   const [failed, setFailed] = useState(false);
   const [localRemaining, setLocalRemaining] = useState(remaining);
   const left = onRemainingChange ? remaining : localRemaining;
@@ -49,8 +56,14 @@ export function DownloadButton({
     setLocalRemaining(next);
   }
 
-  function showLimit() {
-    setLimitOpen(true);
+  function showLimit(nextAt: string | null = nextDownloadAt) {
+    const at = nextAt ?? nextDownloadAt ?? null;
+    setLimitNextAt(at);
+    if (onLimit) {
+      onLimit({ nextAt: at });
+    } else {
+      setLimitOpen(true);
+    }
     if (left !== null) {
       setLeft(0);
     }
@@ -69,7 +82,8 @@ export function DownloadButton({
     try {
       const response = await fetch(`/api/clips/${clipId}/download`);
       if (response.status === 402 || response.status === 403) {
-        showLimit();
+        const payload = (await response.json().catch(() => null)) as { nextAt?: string | null } | null;
+        showLimit(typeof payload?.nextAt === "string" ? payload.nextAt : null);
         return;
       }
       if (!response.ok) {
@@ -151,15 +165,9 @@ export function DownloadButton({
           Download failed. Try again.
         </p>
       ) : null}
-      {limitOpen ? (
-        <div className="download-limit" role="status" data-download-limit="">
-          <p>
-            You&apos;ve used your 3 free downloads this week.{" "}
-            <Link href="/pricing">Go Pro</Link> for unlimited downloads and the originals.
-          </p>
-          <button type="button" className="btn btn-ghost !min-h-10" onClick={() => setLimitOpen(false)}>
-            Close
-          </button>
+      {limitOpen && !onLimit ? (
+        <div className="fixed inset-0 z-(--z-modal)">
+          <DownloadLimitWall nextAt={limitNextAt} onBack={() => setLimitOpen(false)} />
         </div>
       ) : null}
     </>
