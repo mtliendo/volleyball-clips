@@ -5,7 +5,7 @@ description: Architecture and conventions for Focus's volleyball-clips Next.js a
 
 # Volleyball clips
 
-Vertical Meta-glasses volleyball clips. Public calendar + game feed; any signed-in Auth0 user is an admin.
+Vertical Meta-glasses volleyball clips. Public calendar + game feed; only Auth0 users with the `admin` role can manage clips.
 
 ## Stack
 
@@ -26,7 +26,7 @@ Calendar grouping uses `APP_TIMEZONE` (default `America/Chicago`).
 
 ## Auth model
 
-Sign-ups are disabled in Auth0. Do not invent roles. `requireAdminPage` / `requireAdminApi` in `src/lib/admin.ts` check for a session on every admin page and `/api/admin/*` route. `src/proxy.ts` also gates those paths.
+Public sign-ups are enabled (email/password + Google). A post-login Action on the Auth0 tenant puts role names (string array) on the ID and access tokens at `https://vbpov.com/roles`. `isAdmin(session)` in `src/lib/roles.ts` is the only role check — do not use an email allowlist. `requireAdminPage` / `requireAdminApi` in `src/lib/admin.ts` use it on every admin page and `/api/admin/*` route. `src/proxy.ts` also gates those paths (login if signed out, `/not-authorized` or 403 if signed in without `admin`). `beforeSessionSaved` in `src/lib/auth0.ts` must keep the roles claim; v4 drops custom claims by default.
 
 Public pages and `POST /api/webhooks/transcode` stay anonymous. The webhook is HMAC-verified with `TRANSCODE_WEBHOOK_SECRET` (`x-webhook-signature: sha256=...`). That env var is the decrypted SSM SecureString `/volleyball-clips/transcode-webhook-secret` (create once with `aws ssm put-parameter --type SecureString`). The Lambda reads the same parameter with `ssm:GetParameter` (`WithDecryption`).
 
@@ -72,7 +72,7 @@ Edit `src/lib/db/schema.ts`, then `pnpm db:generate` and commit `drizzle/`. Appl
 ## Conventions
 
 - No tests unless asked
-- Check session on the server for admin work; do not trust the client
+- Check the admin role on the server for admin work (`isAdmin(session)`); do not trust the client
 - Presign from the server; never send AWS keys to the browser
 - Keep Lambda scoped to transcode + webhook
 - Document new env vars in `.env.example` and the README

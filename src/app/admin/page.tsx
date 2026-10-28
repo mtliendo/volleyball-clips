@@ -8,8 +8,9 @@ export default async function AdminHomePage() {
     <div className="space-y-4">
       <h1 className="display text-section">Admin</h1>
       <p className="meta">
-        Signed in as {session.user.email ?? session.user.name}. Admin is the Auth0
-        role <code>admin</code> on the claim https://vbpov.com/roles.
+        Signed in as {session.user.email ?? session.user.name}. Only users with
+        the Auth0 <code>admin</code> role on the claim https://vbpov.com/roles
+        can manage clips.
       </p>
       <div className="grid gap-3">
         <Link href="/admin/games/new" className="btn btn-primary">

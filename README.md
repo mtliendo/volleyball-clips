@@ -1,6 +1,6 @@
 # VB POV
 
-Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). Public visitors pick a night, open a session grid, then swipe a TikTok-style 9:16 feed. Signed-in viewers can favorite clips and download. Pro ($5/month, Stripe test mode) gets unlimited original-quality downloads. Admin is the Auth0 role `admin` on the claim `https://vbpov.com/roles`.
+Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). Public visitors pick a night, open a session grid, then swipe a TikTok-style 9:16 feed. Signed-in viewers can favorite clips and download. Pro ($5/month, Stripe test mode) gets unlimited original-quality downloads. Public Auth0 sign-ups (email/password + Google) are enabled; only users with the Auth0 `admin` role on the claim `https://vbpov.com/roles` can manage venues, tags, games, and uploads.
 
 ## Features
 
@@ -73,7 +73,7 @@ phone / laptop
 
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind v4, pnpm.
 - **DB:** Neon Postgres, Drizzle schema in `src/lib/db/schema.ts`.
-- **Auth:** `@auth0/nextjs-auth0` v4. Viewer sign-up is on. Admin is `isAdmin()` in `src/lib/roles.ts`.
+- **Auth:** `@auth0/nextjs-auth0` v4. Public sign-ups are enabled. Admin access is the Auth0 `admin` role, delivered on the session as `user["https://vbpov.com/roles"]` (see Auth0 below).
 - **AWS (us-east-2, tag `project=volleyball-clips`):** private S3 bucket, CloudFront with origin access control, transcode Lambda, IAM role for Vercel OIDC.
 
 S3 keys:
@@ -106,9 +106,17 @@ Configured on `VolleyballClipsStack` (not applied until you run `cdk deploy`):
 
 Intelligent-Tiering Frequent/Infrequent Access stays instantly readable. The stack does **not** enable archive tiers or Glacier.
 
+### Admin edit and delete
+
+Only a session whose `https://vbpov.com/roles` claim includes `admin` is authorized (`isAdmin` in `src/lib/roles.ts`, used by `requireAdminApi` / `requireAdminPage` and `src/proxy.ts`). Signed-out visitors are sent to login. Signed-in non-admins get `403` on `/api/admin/*` and the `/not-authorized` page for `/admin`. The transcode webhook is unchanged (HMAC, not Auth0).
+
+- **Edit a game** on `/games/[id]` (admin panel) or `/admin/games/[id]/edit`: venue from the saved list, date/time, and type. `PATCH /api/admin/games/:id`.
+- **Delete a clip** on the public game feed (admin) or the admin tag editor: confirm dialog, then `DELETE /api/admin/clips/:id`.
+- **Delete a game and all its clips** on the public game page or admin game page: confirm dialog, then `DELETE /api/admin/games/:id`.
+
 ## Auth model
 
-`isAdmin(user)` reads `user["https://vbpov.com/roles"]` and returns true only when that list includes `admin`. Reuse it everywhere. `requireAdminPage` / `requireAdminApi` and `src/proxy.ts` send signed-in non-admins to `/not-authorized` (or 403 on APIs).
+`isAdmin(sessionOrUser)` reads `user["https://vbpov.com/roles"]` and returns true only when that list includes `admin`. It accepts a session (`{ user }`) or the user object. Reuse it everywhere — there is no email allowlist. `requireAdminPage` / `requireAdminApi` and `src/proxy.ts` send signed-in non-admins to `/not-authorized` (or 403 on APIs). The v2 feed tag sheet uses the same check via `getViewer().isAdmin`.
 
 Add a Post-Login Action on tenant `vb-pov.us.auth0.com` so roles reach the ID token (v4 drops namespaced claims unless `beforeSessionSaved` copies them; the app already does that):
 
@@ -204,13 +212,20 @@ One more thing: if you will charge US or EU customers later, consider [Stripe Ta
 
 ## Auth0
 
-1. Regular Web Application on `vb-pov.us.auth0.com`.
+The live app uses a dedicated Auth0 tenant (`vb-pov.us.auth0.com`) with **public sign-ups** (email/password + Google). Swapping tenant keys in Vercel is enough; the app has no extra Auth0 env vars.
+
+1. Create a **Regular Web Application** (not an SPA) on `vb-pov.us.auth0.com`.
 2. Allowed Callback URLs: `http://localhost:3000/auth/callback` and `https://<app-host>/auth/callback`.
 3. Allowed Logout URLs: `http://localhost:3000` and `https://<app-host>`.
 4. Allowed Web Origins: the same two origins.
-5. Enable Database + Google sign-up. Facebook can wait.
-6. Role `admin` + Post-Login Action (above) for the namespaced roles claim.
-7. v4 routes: `/auth/login`, `/auth/callback`, `/auth/logout`. Sign-up: `/auth/login?screen_hint=signup`.
+5. Enable sign-ups on the Database connection and the Google social connection. Facebook can wait.
+6. Create an Auth0 Role named `admin`. Assign it only to users who should upload or manage clips. There is no email allowlist in the app.
+7. Deploy a **post-login Action** that copies the user's role names (string array) onto both the ID token and the access token under the custom claim `https://vbpov.com/roles`. The tenant going live already has this Action; a new tenant must have the same Action or every signed-in user will look like a non-admin.
+8. Paste domain, client id, secret, and a 64-hex `AUTH0_SECRET` into env.
+
+The app treats someone as an admin only when `isAdmin(session)` is true — that is, `session.user["https://vbpov.com/roles"]` includes `"admin"`. `@auth0/nextjs-auth0` v4 persists only a default claim subset, so `beforeSessionSaved` in `src/lib/auth0.ts` keeps this roles claim on the session user (`filterDefaultIdTokenClaims` plus an ID-token fallback).
+
+v4 routes are `/auth/login`, `/auth/callback`, `/auth/logout`. Sign-up: `/auth/login?screen_hint=signup`.
 
 ## CDK deploy
 

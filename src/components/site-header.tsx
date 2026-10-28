@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { getSession } from "@/lib/admin";
+import { getSession, isAdmin } from "@/lib/admin";
 import { authLoginHref } from "@/lib/auth-urls";
 import { isAuth0Configured } from "@/lib/env";
-import { isAdmin } from "@/lib/roles";
 
 export async function SiteHeader() {
   const session = await getSession();
   const authReady = isAuth0Configured();
-  const admin = isAdmin(session?.user);
+  const admin = isAdmin(session);
 
   return (
     <header className="sticky top-0 z-(--z-sticky-nav) border-b border-rule bg-paper/88 backdrop-blur-md">

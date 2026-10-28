@@ -6,6 +6,8 @@ import { auth0 } from "./auth0";
 import { isAuth0Configured } from "./env";
 import { isAdmin, type AuthUser } from "./roles";
 
+export { isAdmin, ROLES_CLAIM, ADMIN_ROLE } from "./roles";
+
 export type AppSession = {
   user: AuthUser;
 };
@@ -36,7 +38,7 @@ export async function requireAdminPage(returnTo = "/admin") {
   if (!session) {
     redirect(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
-  if (!isAdmin(session.user)) {
+  if (!isAdmin(session)) {
     redirect("/not-authorized");
   }
   return session;
@@ -61,9 +63,9 @@ export async function requireAdminApi() {
       error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
     };
   }
-  if (!isAdmin(session.user)) {
+  if (!isAdmin(session)) {
     return {
-      session: null,
+      session,
       error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
     };
   }
