@@ -11,7 +11,7 @@ import { PIN_LABEL_COPY } from "@/lib/labels";
 import type { PublicClip } from "@/lib/queries";
 
 const SOUND_KEY = "vbpov-sound";
-const VIDEO_WINDOW = 2;
+const PRELOAD_WINDOW = 1;
 
 function writeSoundPref(on: boolean) {
   try {
@@ -21,20 +21,35 @@ function writeSoundPref(on: boolean) {
   }
 }
 
-function storedSoundPref() {
-  try {
-    return window.localStorage.getItem(SOUND_KEY) === "on";
-  } catch {
-    return false;
+function applyMute(player: HTMLVideoElement, muted: boolean) {
+  player.muted = muted;
+  player.defaultMuted = muted;
+  if (muted) {
+    player.setAttribute("muted", "");
+  } else {
+    player.removeAttribute("muted");
   }
 }
 
-function userHasGestured() {
-  return Boolean(navigator.userActivation?.hasBeenActive || navigator.userActivation?.isActive);
+function createPlayer() {
+  const player = document.createElement("video");
+  player.className = "feed-player";
+  player.playsInline = true;
+  player.setAttribute("playsinline", "");
+  player.setAttribute("webkit-playsinline", "");
+  player.loop = true;
+  player.preload = "auto";
+  player.controls = false;
+  player.disableRemotePlayback = true;
+  player.setAttribute("data-feed-player", "true");
+  applyMute(player, true);
+  return player;
 }
 
-function markReady(video: HTMLVideoElement) {
-  video.classList.add("is-ready");
+function warmedSrc(slide: HTMLElement | null, fallback: string) {
+  if (!slide) return fallback;
+  const preload = slide.querySelector<HTMLVideoElement>("video.feed-preload");
+  return preload?.currentSrc || preload?.src || fallback;
 }
 
 export function VerticalFeed({
@@ -59,11 +74,70 @@ export function VerticalFeed({
     null,
   );
   const scroller = useRef<HTMLDivElement>(null);
-  const videos = useRef<(HTMLVideoElement | null)[]>([]);
+  const slides = useRef<(HTMLElement | null)[]>([]);
+  const playerRef = useRef<HTMLVideoElement | null>(null);
   const activeIndexRef = useRef(startIndex);
-  const soundOnRef = useRef(false);
+  const unlockedRef = useRef(false);
+  const userMutedRef = useRef(false);
+  const clipsRef = useRef(clips);
+  const playGenRef = useRef(0);
+  const playIndexRef = useRef<(index: number) => void>(() => undefined);
 
   const active = clips[activeIndex];
+
+  const syncSoundUi = useCallback((player: HTMLVideoElement) => {
+    setSoundOn(!player.muted);
+  }, []);
+
+  const attachPlayer = useCallback((index: number) => {
+    const player = playerRef.current;
+    const slide = slides.current[index];
+    if (!player || !slide) return;
+    if (player.parentElement !== slide) {
+      slide.appendChild(player);
+    }
+  }, []);
+
+  const playIndex = useCallback(
+    (index: number) => {
+      const player = playerRef.current;
+      const clip = clipsRef.current[index];
+      const fallback = clip ? cdnUrl(clip.playbackKey) : "";
+      const src = warmedSrc(slides.current[index], fallback);
+      if (!player || !src) return;
+
+      const gen = ++playGenRef.current;
+      const wantSound = unlockedRef.current && !userMutedRef.current;
+      const srcChanged = player.dataset.src !== src;
+
+      if (srcChanged) {
+        player.classList.remove("is-ready");
+        player.pause();
+      }
+
+      attachPlayer(index);
+
+      if (srcChanged) {
+        player.poster = clip?.posterKey ? cdnUrl(clip.posterKey) : "";
+        player.dataset.src = src;
+        player.src = src;
+      }
+
+      // Same unlocked element: never fall back to muted after the user tap.
+      applyMute(player, !wantSound);
+      void player
+        .play()
+        .then(() => {
+          if (gen !== playGenRef.current) return;
+          syncSoundUi(player);
+        })
+        .catch(() => {
+          if (gen !== playGenRef.current) return;
+          syncSoundUi(player);
+        });
+    },
+    [attachPlayer, syncSoundUi],
+  );
 
   const syncUrl = useCallback(
     (clipId: string) => {
@@ -77,36 +151,10 @@ export function VerticalFeed({
     [gameId, tag],
   );
 
-  const applySound = useCallback((video: HTMLVideoElement, wantSound: boolean) => {
-    if (!wantSound) {
-      video.muted = true;
-      return video.play().catch(() => undefined);
-    }
-    video.muted = false;
-    return video.play().catch(() => {
-      video.muted = true;
-      return video.play().catch(() => undefined);
-    });
-  }, []);
-
-  const playActive = useCallback(
-    (index: number) => {
-      videos.current.forEach((video, videoIndex) => {
-        if (!video) return;
-        if (videoIndex === index) {
-          const wantSound =
-            soundOnRef.current || (userHasGestured() && storedSoundPref());
-          if (wantSound) {
-            soundOnRef.current = true;
-          }
-          void applySound(video, wantSound);
-        } else {
-          video.pause();
-        }
-      });
-    },
-    [applySound],
-  );
+  useLayoutEffect(() => {
+    clipsRef.current = clips;
+    playIndexRef.current = playIndex;
+  }, [clips, playIndex]);
 
   useLayoutEffect(() => {
     const root = scroller.current;
@@ -116,6 +164,44 @@ export function VerticalFeed({
       root.scrollTop = slide.offsetTop;
     }
   }, [startIndex]);
+
+  useLayoutEffect(() => {
+    const player = createPlayer();
+    playerRef.current = player;
+
+    const onVolume = () => syncSoundUi(player);
+    const onPlaying = () => {
+      player.classList.add("is-ready");
+      syncSoundUi(player);
+    };
+    const onWaiting = () => {
+      player.classList.remove("is-ready");
+    };
+    const onMeta = () => {
+      const wantSound = unlockedRef.current && !userMutedRef.current;
+      applyMute(player, !wantSound);
+      syncSoundUi(player);
+    };
+    player.addEventListener("volumechange", onVolume);
+    player.addEventListener("playing", onPlaying);
+    player.addEventListener("waiting", onWaiting);
+    player.addEventListener("loadedmetadata", onMeta);
+
+    playIndexRef.current(activeIndexRef.current);
+
+    return () => {
+      player.removeEventListener("volumechange", onVolume);
+      player.removeEventListener("playing", onPlaying);
+      player.removeEventListener("waiting", onWaiting);
+      player.removeEventListener("loadedmetadata", onMeta);
+      player.remove();
+      if (playerRef.current === player) {
+        playerRef.current = null;
+      }
+    };
+    // One media element for the life of the feed. Recreating it drops iOS unlock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const root = scroller.current;
@@ -128,16 +214,12 @@ export function VerticalFeed({
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (!visible) return;
         const index = Number((visible.target as HTMLElement).dataset.index);
-        if (!Number.isFinite(index)) return;
-        if (activeIndexRef.current === index) {
+        if (!Number.isFinite(index) || activeIndexRef.current === index) {
           return;
         }
         activeIndexRef.current = index;
-        playActive(index);
-        if (soundOnRef.current) {
-          setSoundOn(true);
-        }
-        const clip = clips[index];
+        playIndex(index);
+        const clip = clipsRef.current[index];
         if (clip) {
           syncUrl(clip.id);
         }
@@ -149,9 +231,8 @@ export function VerticalFeed({
     for (const child of Array.from(root.children)) {
       observer.observe(child);
     }
-    playActive(activeIndexRef.current);
     return () => observer.disconnect();
-  }, [clips, playActive, syncUrl]);
+  }, [clips, playIndex, syncUrl]);
 
   useEffect(() => {
     if (!active || viewer.watchUnlimited) {
@@ -167,7 +248,7 @@ export function VerticalFeed({
       if (cancelled) return;
       const blocked = response.status === 403;
       if (blocked) {
-        videos.current[activeIndex]?.pause();
+        playerRef.current?.pause();
       }
       setWatchState({ clipId: active.id, blocked });
     });
@@ -175,7 +256,7 @@ export function VerticalFeed({
     return () => {
       cancelled = true;
     };
-  }, [active, activeIndex, viewer.watchUnlimited]);
+  }, [active, viewer.watchUnlimited]);
 
   const blocked =
     !viewer.watchUnlimited &&
@@ -184,25 +265,27 @@ export function VerticalFeed({
     watchState.blocked;
 
   function setSound(next: boolean) {
-    soundOnRef.current = next;
-    setSoundOn(next);
-    writeSoundPref(next);
-    const video = videos.current[activeIndexRef.current];
-    if (!video) return;
+    const player = playerRef.current;
+    userMutedRef.current = !next;
     if (next) {
-      video.muted = false;
-      void video.play().catch(() => {
-        video.muted = true;
-        soundOnRef.current = false;
-        setSoundOn(false);
-      });
+      unlockedRef.current = true;
+    }
+    writeSoundPref(next);
+    if (!player) {
+      setSoundOn(false);
       return;
     }
-    video.muted = true;
+    applyMute(player, !next);
+    if (next) {
+      void player.play().finally(() => syncSoundUi(player));
+      return;
+    }
+    syncSoundUi(player);
   }
 
   function onSlideClick() {
-    if (!soundOnRef.current) {
+    const player = playerRef.current;
+    if (player?.muted) {
       setSound(true);
     }
   }
@@ -224,11 +307,14 @@ export function VerticalFeed({
         {clips.map((clip, index) => {
           const playback = cdnUrl(clip.playbackKey);
           const poster = cdnUrl(clip.posterKey);
-          const mounted = Math.abs(index - activeIndex) <= VIDEO_WINDOW;
+          const preload = Math.abs(index - activeIndex) <= PRELOAD_WINDOW && index !== activeIndex;
 
           return (
             <section
               key={clip.id}
+              ref={(node) => {
+                slides.current[index] = node;
+              }}
               data-index={index}
               className="feed-slide"
               onClick={onSlideClick}
@@ -237,22 +323,17 @@ export function VerticalFeed({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={poster} alt="" className="feed-poster" />
               ) : null}
-              {mounted && playback ? (
+              {preload && playback ? (
                 <video
-                  ref={(node) => {
-                    videos.current[index] = node;
-                  }}
-                  className="feed-video"
+                  className="feed-preload"
                   src={playback}
                   poster={poster || undefined}
-                  playsInline
                   muted
+                  playsInline
                   loop
                   preload="auto"
                   disableRemotePlayback
                   controls={false}
-                  onCanPlay={(event) => markReady(event.currentTarget)}
-                  onPlaying={(event) => markReady(event.currentTarget)}
                 />
               ) : null}
               {!playback && !poster ? (
@@ -284,11 +365,13 @@ export function VerticalFeed({
           <button
             type="button"
             className="icon-btn"
+            data-sound-control=""
             aria-pressed={soundOn}
             aria-label={soundOn ? "Mute" : "Unmute"}
             onClick={(event) => {
               event.stopPropagation();
-              setSound(!soundOnRef.current);
+              const player = playerRef.current;
+              setSound(player ? player.muted : !soundOn);
             }}
           >
             <SoundIcon on={soundOn} />

@@ -6,7 +6,7 @@ Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). P
 
 - **Nights:** month calendar (`?ym=YYYY-MM&d=YYYY-MM-DD`) lists that day’s sessions (venue, time, type: open gym, league, tournament).
 - **Session grid:** every ready clip, pins first. Optional pin labels: Longest rally, Best dig, Super spike. Each label at most once per session, max 3 pins.
-- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. That choice sticks for the rest of the feed and in `localStorage`. Neighbors preload. Close returns to the grid.
+- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. One persistent player element stays mounted and keeps that unlock across swipes (iOS Safari treats unmuted play as per-element). The sound icon follows `video.muted`. Neighbors preload muted. Close returns to the grid.
 - **Accounts:** public Auth0 sign-up (Google + email/password). `users` is keyed by Auth0 `sub`.
 - **Favorites:** heart on the grid and in the feed. `/favorites` lists them.
 - **Watch limit:** anonymous visitors get **7 unique clips per day** (pins count). Tracked server-side with an HttpOnly `vb_vid` cookie plus a hashed IP backstop. Already-watched clips replay. Signed-in users and admins are not limited.

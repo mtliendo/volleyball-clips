@@ -222,7 +222,8 @@ h3 { max-width: 28ch; }
 }
 
 .feed-poster,
-.feed-video {
+.feed-preload,
+.feed-player {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -231,12 +232,18 @@ h3 { max-width: 28ch; }
   background: var(--color-paper);
 }
 
-.feed-video {
+.feed-preload {
+  pointer-events: none;
+}
+
+.feed-player {
+  z-index: 1;
+  background: transparent;
   opacity: 0;
   transition: opacity var(--dur-short) var(--ease-out);
 }
 
-.feed-video.is-ready {
+.feed-player.is-ready {
   opacity: 1;
 }
 
@@ -290,7 +297,7 @@ h3 { max-width: 28ch; }
     width: auto;
   }
 
-  .feed-video {
+  .feed-player {
     opacity: 1;
     transition: none;
   }
