@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getSession } from "@/lib/admin";
+import { getSession, isAdmin } from "@/lib/admin";
 import { isAuth0Configured } from "@/lib/env";
 
 export async function SiteHeader() {
   const session = await getSession();
   const authReady = isAuth0Configured();
+  const admin = isAdmin(session);
 
   return (
     <header className="sticky top-0 z-20 border-b border-line/80 bg-background/80 backdrop-blur-md">
@@ -18,18 +19,18 @@ export async function SiteHeader() {
           </span>
         </Link>
         <nav className="flex items-center gap-3 text-sm text-muted">
-          {session ? (
-            <>
-              <Link href="/admin" className="hover:text-foreground">
-                Admin
-              </Link>
-              <a href="/auth/logout" className="hover:text-foreground">
-                Sign out
-              </a>
-            </>
-          ) : authReady ? (
-            <a href="/auth/login?returnTo=/admin" className="hover:text-foreground">
+          {admin ? (
+            <Link href="/admin" className="hover:text-foreground">
               Admin
+            </Link>
+          ) : null}
+          {session ? (
+            <a href="/auth/logout" className="hover:text-foreground">
+              Sign out
+            </a>
+          ) : authReady ? (
+            <a href="/auth/login?returnTo=/" className="hover:text-foreground">
+              Sign in
             </a>
           ) : null}
         </nav>

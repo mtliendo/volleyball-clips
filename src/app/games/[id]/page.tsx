@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { GameAdminPanel } from "@/components/admin/game-admin-panel";
 import { ClipFeed } from "@/components/clip-feed";
-import { getSession } from "@/lib/admin";
+import { getSession, isAdmin } from "@/lib/admin";
 import { formatGameWhen, toDatetimeLocalValue } from "@/lib/dates";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
 import { getGameWithVenue, listGameClips, listTags, listVenues } from "@/lib/queries";
@@ -21,10 +21,11 @@ export default async function GamePage({
   }
 
   const session = await getSession();
+  const admin = isAdmin(session);
   const [clips, tags, venues] = await Promise.all([
     listGameClips(id, { readyOnly: true }),
     listTags(),
-    session ? listVenues() : Promise.resolve([]),
+    admin ? listVenues() : Promise.resolve([]),
   ]);
 
   return (
@@ -39,7 +40,7 @@ export default async function GamePage({
         <h1 className="display mt-1 text-4xl">{game.venueName}</h1>
         <p className="mt-2 text-sm text-muted">{formatGameWhen(game.startsAt)}</p>
       </header>
-      {session ? (
+      {admin ? (
         <GameAdminPanel
           venues={venues}
           game={{
@@ -51,7 +52,7 @@ export default async function GamePage({
           }}
         />
       ) : null}
-      <ClipFeed clips={clips} tags={tags} canManage={Boolean(session)} />
+      <ClipFeed clips={clips} tags={tags} canManage={admin} />
     </div>
   );
 }

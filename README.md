@@ -1,6 +1,6 @@
 # volleyball-clips
 
-Vertical Meta-glasses volleyball clips for Focus. Public visitors browse a month calendar, open a day's games, and watch a phone-first 9:16 feed. Any signed-in Auth0 user is an admin and can manage venues, tags, games, and parallel camera-roll uploads.
+Vertical Meta-glasses volleyball clips for Focus. Public visitors browse a month calendar, open a day's games, and watch a phone-first 9:16 feed. Public Auth0 sign-ups (email/password + Google) are enabled; only users with the Auth0 `admin` role can manage venues, tags, games, and parallel camera-roll uploads.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ phone / laptop
 
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind, pnpm.
 - **DB:** Neon Postgres, Drizzle schema in `src/lib/db/schema.ts`.
-- **Auth:** `@auth0/nextjs-auth0` v4. Sign-ups are disabled in Auth0; the app only checks for a session.
+- **Auth:** `@auth0/nextjs-auth0` v4. Public sign-ups are enabled. Admin access is the Auth0 `admin` role, delivered on the session as `user["https://vbpov.com/roles"]` (see Auth0 below).
 - **AWS (us-east-2, tag `project=volleyball-clips`):** private S3 bucket, CloudFront with origin access control, transcode Lambda, IAM role for Vercel OIDC.
 
 S3 keys:
@@ -61,12 +61,12 @@ Configured on `VolleyballClipsStack` (not applied until you run `cdk deploy`):
 
 Intelligent-Tiering Frequent/Infrequent Access stays instantly readable, so public full-res downloads (`uploads/*` via CloudFront) stay instant. The stack does **not** enable Intelligent-Tiering Archive Access or Deep Archive Access, and it does **not** transition to Glacier Flexible Retrieval or Glacier Deep Archive.
 
-### Signed-in edit and delete
+### Admin edit and delete
 
-Any Auth0 session is an admin (`requireAdminApi` / `requireAdminPage`, same as the other `/api/admin/*` routes).
+Only a session whose `https://vbpov.com/roles` claim includes `admin` is authorized (`isAdmin` in `src/lib/roles.ts`, used by `requireAdminApi` / `requireAdminPage` and `src/proxy.ts`). Signed-out visitors are sent to login. Signed-in non-admins get `403` on `/api/admin/*` and the `/not-authorized` page for `/admin`. The transcode webhook is unchanged (HMAC, not Auth0).
 
-- **Edit a game** on `/games/[id]` (signed-in panel) or `/admin/games/[id]/edit`: venue from the saved list, date/time, and type. `PATCH /api/admin/games/:id`.
-- **Delete a clip** on the public game feed (signed-in) or the admin tag editor: confirm dialog, then `DELETE /api/admin/clips/:id`.
+- **Edit a game** on `/games/[id]` (admin panel) or `/admin/games/[id]/edit`: venue from the saved list, date/time, and type. `PATCH /api/admin/games/:id`.
+- **Delete a clip** on the public game feed (admin) or the admin tag editor: confirm dialog, then `DELETE /api/admin/clips/:id`.
 - **Delete a game and all its clips** on the public game page or admin game page: confirm dialog, then `DELETE /api/admin/games/:id`.
 
 Delete order: S3 objects first (original + conventional `playback/` and `posters/` keys), then `clip_tags`, then `clips`, then `games`. If any S3 delete fails, the API returns `502` and leaves the database rows in place so you can retry (S3 `DeleteObject` is idempotent, including missing keys).
@@ -123,12 +123,18 @@ Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of O
 
 ## Auth0
 
+The live app uses a dedicated Auth0 tenant with **public sign-ups** (email/password + Google). Swapping tenant keys in Vercel is enough; the app has no extra Auth0 env vars.
+
 1. Create a **Regular Web Application** (not an SPA).
 2. Allowed Callback URLs: `http://localhost:3000/auth/callback` and `https://<app-host>/auth/callback`.
 3. Allowed Logout URLs: `http://localhost:3000` and `https://<app-host>`.
 4. Allowed Web Origins: the same two origins.
-5. Disable sign-ups in Authentication → Database (or your social connections). Invite or create the admin users yourself.
-6. Paste domain, client id, secret, and a 64-hex `AUTH0_SECRET` into env.
+5. Enable sign-ups on the Database connection and the Google social connection.
+6. Create an Auth0 Role named `admin`. Assign it only to users who should upload or manage clips. There is no email allowlist in the app.
+7. Deploy a **post-login Action** that copies the user's role names (string array) onto both the ID token and the access token under the custom claim `https://vbpov.com/roles`. The tenant going live already has this Action; a new tenant must have the same Action or every signed-in user will look like a non-admin.
+8. Paste domain, client id, secret, and a 64-hex `AUTH0_SECRET` into env.
+
+The app treats someone as an admin only when `isAdmin(session)` is true — that is, `session.user["https://vbpov.com/roles"]` is an array that includes `"admin"`. `@auth0/nextjs-auth0` v4 persists only a default claim subset, so `beforeSessionSaved` in `src/lib/auth0.ts` keeps this roles claim on the session user.
 
 v4 routes are `/auth/login`, `/auth/callback`, `/auth/logout`.
 

@@ -8,8 +8,8 @@ export default async function AdminHomePage() {
     <div className="space-y-4">
       <h1 className="display text-4xl">Admin</h1>
       <p className="text-sm text-muted">
-        Signed in as {session.user.email ?? session.user.name}. Any Auth0 user is
-        an admin; keep sign-ups disabled in the tenant.
+        Signed in as {session.user.email ?? session.user.name}. Only users with
+        the Auth0 <code>admin</code> role can manage clips.
       </p>
       <div className="grid gap-3">
         <Link href="/admin/games/new" className="rounded-3xl bg-court px-4 py-4 text-background">
