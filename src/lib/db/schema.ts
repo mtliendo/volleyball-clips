@@ -245,13 +245,14 @@ export const favoritesRelations = relations(favorites, ({ one }) => ({
 }));
 
 export const SEED_TAGS = [
+  { slug: "ace", name: "Ace" },
+  { slug: "serve", name: "Serve" },
+  { slug: "dig", name: "Dig" },
+  { slug: "set", name: "Set" },
   { slug: "spike", name: "Spike" },
   { slug: "block", name: "Block" },
-  { slug: "dig", name: "Dig" },
-  { slug: "ace", name: "Ace" },
-  { slug: "set", name: "Set" },
-  { slug: "save", name: "Save" },
   { slug: "rally", name: "Rally" },
+  { slug: "save", name: "Save" },
 ] as const;
 
 export const PIN_LABELS = [

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { VerticalFeed } from "@/components/vertical-feed";
 import { getViewer } from "@/lib/entitlements";
-import { getGameWithVenue, listGameClips } from "@/lib/queries";
+import { getGameWithVenue, listGameClips, listTags } from "@/lib/queries";
 
 export default async function WatchPage({
   params,
@@ -21,10 +21,13 @@ export default async function WatchPage({
   }
 
   const viewer = await getViewer();
-  const clips = await listGameClips(id, {
-    readyOnly: true,
-    favoriteUserId: viewer.appUserId,
-  });
+  const [clips, catalogTags] = await Promise.all([
+    listGameClips(id, {
+      readyOnly: true,
+      favoriteUserId: viewer.appUserId,
+    }),
+    listTags(),
+  ]);
 
   const filtered = tag
     ? clips.filter((clip) => clip.tags.some((item) => item.slug === tag))
@@ -42,6 +45,7 @@ export default async function WatchPage({
       startId={clipId}
       gameId={id}
       tag={tag ?? null}
+      catalogTags={catalogTags}
       viewer={viewer}
       closeHref={`/games/${id}${closeQuery}`}
     />

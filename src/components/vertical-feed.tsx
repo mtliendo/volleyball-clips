@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DownloadButton } from "@/components/download-button";
 import { FavoriteButton } from "@/components/favorite-button";
+import { FeedTagSheet, type CatalogTag } from "@/components/feed-tag-sheet";
 import { SignupWall } from "@/components/signup-wall";
 import { cdnUrl } from "@/lib/cdn";
+import type { PinLabel } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/entitlements";
 import { PIN_LABEL_COPY } from "@/lib/labels";
-import type { PublicClip } from "@/lib/queries";
+import type { ClipPin, PublicClip } from "@/lib/queries";
 
 const SOUND_KEY = "vbpov-sound";
 const PRELOAD_WINDOW = 1;
@@ -56,11 +58,38 @@ function warmedSrc(slide: HTMLElement | null, fallback: string) {
   return preload?.currentSrc || preload?.src || fallback;
 }
 
+function pinSeed(clips: PublicClip[]) {
+  return Object.fromEntries(clips.map((clip) => [clip.id, clip.pin])) as Record<
+    string,
+    ClipPin | null
+  >;
+}
+
+function tagSeed(clips: PublicClip[]) {
+  return Object.fromEntries(clips.map((clip) => [clip.id, clip.tags])) as Record<
+    string,
+    PublicClip["tags"]
+  >;
+}
+
+function pinKey(clips: PublicClip[]) {
+  return clips
+    .map((clip) => `${clip.id}:${clip.pin?.label ?? ""}:${clip.pin?.position ?? ""}`)
+    .join(",");
+}
+
+function playTagKey(clips: PublicClip[]) {
+  return clips
+    .map((clip) => `${clip.id}:${clip.tags.map((tag) => tag.slug).sort().join("+")}`)
+    .join(",");
+}
+
 export function VerticalFeed({
   clips,
   startId,
   gameId,
   tag,
+  catalogTags = [],
   viewer,
   closeHref,
 }: {
@@ -68,6 +97,7 @@ export function VerticalFeed({
   startId: string;
   gameId: string;
   tag: string | null;
+  catalogTags?: CatalogTag[];
   viewer: Viewer;
   closeHref: string;
 }) {
@@ -86,6 +116,22 @@ export function VerticalFeed({
     setSeededFavKey(serverFavKey);
     setFavoritedIds(new Set(clips.filter((clip) => clip.favorited).map((clip) => clip.id)));
   }
+  const serverPinKey = pinKey(clips);
+  const [pinsByClip, setPinsByClip] = useState(() => pinSeed(clips));
+  const [seededPinKey, setSeededPinKey] = useState(serverPinKey);
+  if (seededPinKey !== serverPinKey) {
+    setSeededPinKey(serverPinKey);
+    setPinsByClip(pinSeed(clips));
+  }
+  const serverTagKey = playTagKey(clips);
+  const [tagsByClip, setTagsByClip] = useState(() => tagSeed(clips));
+  const [seededTagKey, setSeededTagKey] = useState(serverTagKey);
+  if (seededTagKey !== serverTagKey) {
+    setSeededTagKey(serverTagKey);
+    setTagsByClip(tagSeed(clips));
+  }
+  const [tagSheetOpen, setTagSheetOpen] = useState(false);
+  const [tagPending, setTagPending] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
   const playerRef = useRef<HTMLVideoElement | null>(null);
@@ -312,6 +358,67 @@ export function VerticalFeed({
     }
   }
 
+  function applyPinLocal(clipId: string, label: PinLabel | null) {
+    setPinsByClip((prev) => {
+      const next: Record<string, ClipPin | null> = { ...prev };
+      if (!label) {
+        next[clipId] = null;
+        return next;
+      }
+      for (const [id, value] of Object.entries(next)) {
+        if (value?.label === label && id !== clipId) {
+          next[id] = null;
+        }
+      }
+      next[clipId] = { label, position: next[clipId]?.position ?? 0 };
+      return next;
+    });
+  }
+
+  async function pickPin(label: PinLabel | null) {
+    if (!active) return;
+    const clipId = active.id;
+    const snapshot = pinsByClip;
+    applyPinLocal(clipId, label);
+    setTagPending(true);
+    try {
+      const response = await fetch(`/api/admin/clips/${clipId}/pin`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label }),
+      });
+      if (!response.ok) {
+        setPinsByClip(snapshot);
+      }
+    } catch {
+      setPinsByClip(snapshot);
+    }
+    setTagPending(false);
+  }
+
+  async function togglePlayTag(tag: CatalogTag) {
+    if (!active) return;
+    const clipId = active.id;
+    const current = tagsByClip[clipId] ?? active.tags;
+    const has = current.some((item) => item.id === tag.id);
+    const next = has ? current.filter((item) => item.id !== tag.id) : [...current, tag];
+    setTagsByClip((prev) => ({ ...prev, [clipId]: next }));
+    setTagPending(true);
+    try {
+      const response = await fetch(`/api/admin/clips/${clipId}/tags`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagIds: next.map((item) => item.id) }),
+      });
+      if (!response.ok) {
+        setTagsByClip((prev) => ({ ...prev, [clipId]: current }));
+      }
+    } catch {
+      setTagsByClip((prev) => ({ ...prev, [clipId]: current }));
+    }
+    setTagPending(false);
+  }
+
   if (clips.length === 0 || !active) {
     return (
       <div className="feed-root grid place-items-center px-4">
@@ -322,6 +429,10 @@ export function VerticalFeed({
       </div>
     );
   }
+
+  const activePin = pinsByClip[active.id] ?? active.pin;
+  const activePlayTags = tagsByClip[active.id] ?? active.tags;
+  const pinCount = Object.values(pinsByClip).filter(Boolean).length;
 
   return (
     <div className="feed-root" data-active-clip={active.id}>
@@ -380,14 +491,31 @@ export function VerticalFeed({
         <Link href={closeHref} className="pointer-events-auto btn btn-ghost !min-h-10">
           Close
         </Link>
-        {active.pin ? (
-          <span className="chip-spark pointer-events-none" data-pin-badge={active.pin.label ?? "pinned"}>
-            {active.pin.label ? PIN_LABEL_COPY[active.pin.label] : "Pinned"}
+        {activePin ? (
+          <span className="chip-spark pointer-events-none" data-pin-badge={activePin.label ?? "pinned"}>
+            {activePin.label ? PIN_LABEL_COPY[activePin.label] : "Pinned"}
           </span>
         ) : null}
       </div>
 
       <div className="pointer-events-none absolute right-3 bottom-20 z-(--z-raised) flex flex-col items-center gap-3">
+        {viewer.isAdmin ? (
+          <div className="pointer-events-auto">
+            <button
+              type="button"
+              className="icon-btn"
+              data-pin-control=""
+              aria-pressed={Boolean(activePin) || activePlayTags.length > 0}
+              aria-label="Set tags"
+              onClick={(event) => {
+                event.stopPropagation();
+                setTagSheetOpen(true);
+              }}
+            >
+              <TagIcon />
+            </button>
+          </div>
+        ) : null}
         <div className="pointer-events-auto">
           <button
             type="button"
@@ -454,7 +582,38 @@ export function VerticalFeed({
           <SignupWall returnTo={`/games/${gameId}/watch/${active.id}`} />
         </div>
       ) : null}
+
+      {viewer.isAdmin ? (
+        <FeedTagSheet
+          open={tagSheetOpen}
+          clipId={active.id}
+          pin={activePin}
+          pinsByClip={pinsByClip}
+          playTags={activePlayTags}
+          catalogTags={catalogTags}
+          pinCount={pinCount}
+          pending={tagPending}
+          onClose={() => setTagSheetOpen(false)}
+          onPickPin={(label) => void pickPin(label)}
+          onTogglePlayTag={(item) => void togglePlayTag(item)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function TagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path
+        d="M4 10.5 10.5 4h7.2L20 6.3v7.2L13.5 20 4 10.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <circle cx="15.2" cy="8.8" r="1.15" fill="currentColor" />
+    </svg>
   );
 }
 
