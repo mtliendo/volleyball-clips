@@ -23,6 +23,7 @@ function viewerFor(role: string | undefined): Viewer {
     canFavorite: true,
     canDownload: false,
     downloadsRemaining: null,
+    nextDownloadAt: null,
     stripeReady: false,
     authReady: true,
     email: "verify@vbpov.test",

@@ -33,6 +33,9 @@ async function feedState(page) {
       label: download?.textContent?.replace(/\s+/g, " ").trim() ?? "",
       limit: Boolean(document.querySelector("[data-download-limit]")),
       pricing: document.querySelector("[data-download-limit] a[href='/pricing']")?.getAttribute("href") ?? null,
+      primary: document.querySelector("[data-download-limit] .btn-primary")?.textContent?.trim() ?? null,
+      secondary: document.querySelector("[data-download-limit] .btn-ghost")?.textContent?.trim() ?? null,
+      heading: document.querySelector("[data-download-limit] h2")?.textContent?.trim() ?? null,
     };
   });
 }
@@ -156,7 +159,16 @@ async function main() {
       throw new Error(`limit message missing: ${JSON.stringify(limited)}`);
     }
     if (limited.pricing !== "/pricing") {
-      throw new Error(`limit message missing /pricing link: ${JSON.stringify(limited)}`);
+      throw new Error(`limit wall missing /pricing link: ${JSON.stringify(limited)}`);
+    }
+    if (limited.heading !== "That is three for the week") {
+      throw new Error(`limit heading off: ${JSON.stringify(limited)}`);
+    }
+    if (limited.primary !== "Go Pro, $5 a month") {
+      throw new Error(`primary button off: ${JSON.stringify(limited)}`);
+    }
+    if (limited.secondary !== "Back to the clip") {
+      throw new Error(`secondary button off: ${JSON.stringify(limited)}`);
     }
     if (limited.url.startsWith("/api/clips/")) {
       throw new Error(`navigated to API JSON: ${JSON.stringify(limited)}`);
@@ -168,11 +180,31 @@ async function main() {
     if (body.includes("Weekly download limit reached")) {
       throw new Error("raw API JSON rendered on the page");
     }
-    if (!body.includes("You've used your 3 free downloads this week")) {
-      throw new Error(`friendly copy missing: ${body}`);
+    if (!body.includes("Another one frees up")) {
+      throw new Error(`next-free copy missing: ${body}`);
     }
-    await page.screenshot({ path: `${shotDir}/download_limit_stays_on_clip.png` });
-    console.log("ok 402 stays on clip with pricing link");
+    await page.screenshot({ path: `${shotDir}/download_limit_wall.png` });
+    console.log("ok 402 stays on clip with download wall");
+
+    await page.goto(`${baseUrl}/dev/feed-keys?wall=watch`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector("[data-signup-wall]", { timeout: 15000 });
+    const watchCopy = await page.locator("[data-signup-wall]").innerText();
+    if (!watchCopy.includes("That is seven for today")) {
+      throw new Error(`seven-a-day wall missing: ${watchCopy}`);
+    }
+    await page.screenshot({ path: `${shotDir}/watch_limit_wall.png` });
+    console.log("ok seven-a-day wall");
+
+    await page.setViewportSize({ width: 780, height: 844 });
+    const walls = await page.goto(`${baseUrl}/dev/walls`, { waitUntil: "domcontentloaded" });
+    if (!walls || walls.status() >= 400) {
+      throw new Error(`walls harness missing (${walls?.status() ?? "no response"})`);
+    }
+    await page.waitForSelector("[data-verify-walls]", { timeout: 15000 });
+    await page.waitForSelector("[data-signup-wall]", { timeout: 15000 });
+    await page.waitForSelector("[data-download-limit]", { timeout: 15000 });
+    await page.screenshot({ path: `${shotDir}/walls_side_by_side.png` });
+    console.log("ok side-by-side walls");
 
     const api = await page.request.get(`${baseUrl}/api/clips/${beforeLimit.clipId}/download`);
     const apiDisposition = api.headers()["content-disposition"] ?? "";

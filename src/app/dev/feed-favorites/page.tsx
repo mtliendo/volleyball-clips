@@ -18,6 +18,7 @@ const VERIFY_VIEWER: Viewer = {
   canFavorite: true,
   canDownload: false,
   downloadsRemaining: null,
+  nextDownloadAt: null,
   stripeReady: false,
   authReady: true,
   email: "verify@vbpov.test",

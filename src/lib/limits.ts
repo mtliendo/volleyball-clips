@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   ANON_WATCH_LIMIT,
@@ -21,6 +21,24 @@ export async function countDownloadsThisWeek(userId: string) {
     .from(downloadEvents)
     .where(and(eq(downloadEvents.userId, userId), gte(downloadEvents.createdAt, since)));
   return Number(row?.total ?? 0);
+}
+
+export async function oldestDownloadThisWeek(userId: string) {
+  if (!isDatabaseConfigured()) return null;
+  const since = new Date(Date.now() - WEEK_MS);
+  const [row] = await getDb()
+    .select({ createdAt: downloadEvents.createdAt })
+    .from(downloadEvents)
+    .where(and(eq(downloadEvents.userId, userId), gte(downloadEvents.createdAt, since)))
+    .orderBy(asc(downloadEvents.createdAt))
+    .limit(1);
+  return row?.createdAt ?? null;
+}
+
+export function nextDownloadAtFromOldest(oldest: Date | null, now = new Date()) {
+  if (!oldest) return null;
+  const next = new Date(oldest.getTime() + WEEK_MS);
+  return next > now ? next : null;
 }
 
 export async function hasRecentDownload(input: {

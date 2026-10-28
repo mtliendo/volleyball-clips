@@ -22,6 +22,7 @@ export function verifyViewer(overrides: Partial<Viewer> = {}): Viewer {
     canFavorite: true,
     canDownload: true,
     downloadsRemaining: 3,
+    nextDownloadAt: null,
     stripeReady: false,
     authReady: true,
     email: "verify@vbpov.test",
