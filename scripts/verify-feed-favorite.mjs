@@ -97,7 +97,7 @@ async function main() {
   });
 
   try {
-    const harness = await page.goto(`${baseUrl}/__verify__/feed-favorites`, {
+    const harness = await page.goto(`${baseUrl}/dev/feed-favorites`, {
       waitUntil: "domcontentloaded",
     });
     if (!harness || harness.status() >= 400) {
