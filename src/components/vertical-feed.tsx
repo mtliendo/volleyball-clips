@@ -40,7 +40,11 @@ function createPlayer() {
   player.loop = true;
   player.preload = "auto";
   player.controls = false;
-  player.disableRemotePlayback = true;
+  try {
+    player.disableRemotePlayback = true;
+  } catch {
+    /* older WebKit */
+  }
   player.setAttribute("data-feed-player", "true");
   applyMute(player, true);
   return player;
@@ -91,7 +95,9 @@ export function VerticalFeed({
 
   const attachPlayer = useCallback((index: number) => {
     const player = playerRef.current;
-    const slide = slides.current[index];
+    const slide =
+      slides.current[index] ??
+      (scroller.current?.children[index] as HTMLElement | undefined);
     if (!player || !slide) return;
     if (player.parentElement !== slide) {
       slide.appendChild(player);
@@ -104,7 +110,12 @@ export function VerticalFeed({
       const clip = clipsRef.current[index];
       const fallback = clip ? cdnUrl(clip.playbackKey) : "";
       const src = warmedSrc(slides.current[index], fallback);
-      if (!player || !src) return;
+      if (!player) return;
+
+      attachPlayer(index);
+      if (!src || !player.parentElement) {
+        return;
+      }
 
       const gen = ++playGenRef.current;
       const wantSound = unlockedRef.current && !userMutedRef.current;
@@ -114,8 +125,6 @@ export function VerticalFeed({
         player.classList.remove("is-ready");
         player.pause();
       }
-
-      attachPlayer(index);
 
       if (srcChanged) {
         player.poster = clip?.posterKey ? cdnUrl(clip.posterKey) : "";
@@ -187,9 +196,12 @@ export function VerticalFeed({
     player.addEventListener("waiting", onWaiting);
     player.addEventListener("loadedmetadata", onMeta);
 
-    playIndexRef.current(activeIndexRef.current);
+    const tryPlay = () => playIndexRef.current(activeIndexRef.current);
+    tryPlay();
+    const retry = window.requestAnimationFrame(tryPlay);
 
     return () => {
+      window.cancelAnimationFrame(retry);
       player.removeEventListener("volumechange", onVolume);
       player.removeEventListener("playing", onPlaying);
       player.removeEventListener("waiting", onWaiting);
@@ -231,6 +243,7 @@ export function VerticalFeed({
     for (const child of Array.from(root.children)) {
       observer.observe(child);
     }
+    playIndex(activeIndexRef.current);
     return () => observer.disconnect();
   }, [clips, playIndex, syncUrl]);
 
@@ -314,6 +327,11 @@ export function VerticalFeed({
               key={clip.id}
               ref={(node) => {
                 slides.current[index] = node;
+                return () => {
+                  if (slides.current[index] === node) {
+                    slides.current[index] = null;
+                  }
+                };
               }}
               data-index={index}
               className="feed-slide"

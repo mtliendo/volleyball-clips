@@ -82,7 +82,8 @@ async function main() {
     if (!startHref) throw new Error("first clip missing href");
 
     await page.goto(`${baseUrl}${startHref}`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("video[data-feed-player]", { timeout: 15000 });
+    await page.waitForSelector(".feed-scroller", { timeout: 15000 });
+    await page.waitForSelector("video[data-feed-player]", { state: "attached", timeout: 15000 });
     await page.waitForSelector("[data-sound-control]", { timeout: 15000 });
 
     await page.locator("[data-sound-control]").click();
