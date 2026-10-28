@@ -67,8 +67,9 @@ phone / laptop
                                     │     POST /api/webhooks/transcode (HMAC)
                                     │
                                     └─ CloudFront (OAC)
-                                          playback + posters inline
-                                          uploads/* as Content-Disposition: attachment
+                                          playback + posters inline (unsigned in phase 1)
+                                          uploads/* require a CloudFront signed URL
+                                          (trusted key group; Pro downloads proxy through the app)
 ```
 
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind v4, pnpm.
@@ -84,7 +85,7 @@ S3 keys:
 | `playback/{gameId}/{clipId}/playback.mp4` | 1080-wide H.264 ~5 Mbps / 30 fps, faststart (feed + free download) |
 | `posters/{gameId}/{clipId}/poster.jpg` | Still for the grid and player |
 
-Public playback uses `cdnUrl()`. Free downloads never serve `uploads/`.
+Public playback uses `cdnUrl()`. The watch page and public APIs never send `originalKey` or any `uploads/` URL. Free downloads never serve `uploads/`. Pro originals are fetched server-side with a short-lived CloudFront signed URL (`CLOUDFRONT_KEY_PAIR_ID` + `CLOUDFRONT_PRIVATE_KEY`) and streamed from `/api/clips/:id/download` as an attachment. The same signer is what phase 2 will reuse for playback. The transcode Lambda reads originals with S3 `GetObject`, not CloudFront.
 
 Vercel talks to AWS with `@vercel/functions/oidc` `awsCredentialsProvider`. The federated role `volleyball-clips-vercel-presign` can:
 
@@ -167,6 +168,7 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `APP_TIMEZONE` | Optional. Defaults to `America/Chicago` |
 | `ANON_HASH_SECRET` | Optional HMAC key for the watch IP backstop. Falls back to `AUTH0_SECRET` |
 | `TRANSCODE_WEBHOOK_SECRET` | Decrypted SSM `/volleyball-clips/transcode-webhook-secret` |
+| `CLOUDFRONT_PRIVATE_KEY` | Matching private key for `CLOUDFRONT_KEY_PAIR_ID`. PEM (newlines or `\n`) or base64. Never commit it |
 | `STRIPE_SECRET_KEY` | Stripe **test** secret (`sk_test_…`). Optional; app degrades without it |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret. Optional |
 | `STRIPE_PRICE_ID` | Recurring $5/month test price. Optional |
@@ -179,8 +181,11 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `AWS_REGION` | Always `us-east-2` |
 | `AWS_S3_BUCKET` | Bucket name for presigned PUTs |
 | `AWS_ROLE_ARN` | Vercel OIDC role |
-| `NEXT_PUBLIC_CDN_URL` | `https://<cloudfront-domain>` for playback, posters, and original downloads |
+| `NEXT_PUBLIC_CDN_URL` | `https://<cloudfront-domain>` for playback and posters |
+| `CLOUDFRONT_KEY_PAIR_ID` | CloudFront public key id (trusted key group). Required before locking `uploads/*` |
 | `TRANSCODE_WEBHOOK_SECRET_PARAMETER` | Name of the SSM SecureString |
+
+Set `CLOUDFRONT_PRIVATE_KEY` yourself (PEM with real newlines or `\n`, or base64 of the PEM). Never put it in the repo or in CDK context. The app works without these vars while `uploads/*` is still public; after the CDK lock, downloads of originals fail until they are set.
 
 Local uploads can use `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` instead of OIDC. Do not set those on Vercel.
 
@@ -237,14 +242,35 @@ pnpm install
 ./scripts/prepare-ffmpeg-layer.sh
 npx cdk deploy \
   -c webhookUrl=https://<app-host>/api/webhooks/transcode \
-  -c allowedOrigins=http://localhost:3000,https://<app-host>
+  -c allowedOrigins=http://localhost:3000,https://<app-host> \
+  -c cloudfrontPublicKeyPath=./keys/cloudfront-public.pem \
+  -c lockUploads=false
 ```
 
-Useful context flags: `webhookUrl`, `allowedOrigins`, `vercelTeamSlug` (`focus-otters-projects`), `vercelProjectName` (`volleyball-clips`), `vercelOidcProviderArn`.
+Useful context flags: `webhookUrl`, `allowedOrigins`, `vercelTeamSlug` (`focus-otters-projects`), `vercelProjectName` (`volleyball-clips`), `vercelOidcProviderArn`, `cloudfrontPublicKeyPath` or `cloudfrontPublicKeyPem`, `lockUploads` (`true` locks unsigned `uploads/*`; pass `false` for the first deploy so you can set Vercel signing env before the lock).
+
+Generate the signing keypair on the deploy machine (private key never enters git):
+
+```bash
+openssl genrsa -out cloudfront-private.pem 2048
+openssl rsa -pubout -in cloudfront-private.pem -out cloudfront-public.pem
+```
 
 The stack is `VolleyballClipsStack` in `us-east-2`. Every resource is tagged `project=volleyball-clips`.
 
-After deploy, set `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, and `TRANSCODE_WEBHOOK_SECRET` on Vercel.
+After deploy, set `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_ROLE_ARN`, `NEXT_PUBLIC_CDN_URL`, `CLOUDFRONT_KEY_PAIR_ID`, `CLOUDFRONT_PRIVATE_KEY`, and `TRANSCODE_WEBHOOK_SECRET` on Vercel (preview and production). Then deploy the app, then `cdk deploy` again with `-c lockUploads=true`.
+
+Lockdown check (preview or production):
+
+```bash
+pnpm exec playwright install chromium
+pnpm verify:lockdown -- \
+  --base-url https://<app-host> \
+  --cdn-url https://<cloudfront-domain> \
+  --original-key uploads/<gameId>/<clipId>/<file>.mp4 \
+  --free-cookie '<Cookie header>' \
+  --pro-cookie '<Cookie header>'
+```
 
 The Lambda is 10 GB RAM, 15 minute timeout, 5 GB ephemeral disk, Node.js 22 + ffmpeg layer. Output is 1080-wide H.264 at ~5 Mbps / 30 fps with `+faststart`, plus a poster JPG.
 

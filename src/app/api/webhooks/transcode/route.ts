@@ -61,5 +61,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Clip not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, clip });
+  return NextResponse.json({ ok: true, clipId: clip.id, status: clip.status });
 }

@@ -44,3 +44,9 @@ export function isStripeConfigured() {
 export function isStripeWebhookConfigured() {
   return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
 }
+
+export function isCloudFrontSigningConfigured() {
+  return Boolean(
+    process.env.CLOUDFRONT_KEY_PAIR_ID?.trim() && process.env.CLOUDFRONT_PRIVATE_KEY?.trim(),
+  );
+}

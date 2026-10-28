@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin";
+import { omitOriginalKey } from "@/lib/clip-public";
 import { getDb } from "@/lib/db";
 import { clips } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
@@ -22,7 +23,7 @@ export async function POST(
   }
 
   if (existing.status === "ready" || existing.status === "failed") {
-    return NextResponse.json(existing);
+    return NextResponse.json(omitOriginalKey(existing));
   }
 
   const [clip] = await getDb()
@@ -31,5 +32,9 @@ export async function POST(
     .where(eq(clips.id, id))
     .returning();
 
-  return NextResponse.json(clip);
+  if (!clip) {
+    return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(omitOriginalKey(clip));
 }
