@@ -8,6 +8,7 @@ import {
   downloadEvents,
   watchEvents,
 } from "./db/schema";
+import { recentDownloadWindowMs } from "./download";
 import { isDatabaseConfigured } from "./env";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -22,12 +23,38 @@ export async function countDownloadsThisWeek(userId: string) {
   return Number(row?.total ?? 0);
 }
 
+export async function hasRecentDownload(input: {
+  userId: string;
+  clipId: string;
+  quality: "playback" | "original";
+}) {
+  if (!isDatabaseConfigured()) return false;
+  const since = new Date(Date.now() - recentDownloadWindowMs());
+  const [row] = await getDb()
+    .select({ id: downloadEvents.id })
+    .from(downloadEvents)
+    .where(
+      and(
+        eq(downloadEvents.userId, input.userId),
+        eq(downloadEvents.clipId, input.clipId),
+        eq(downloadEvents.quality, input.quality),
+        gte(downloadEvents.createdAt, since),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 export async function recordDownload(input: {
   userId: string;
   clipId: string;
   quality: "playback" | "original";
 }) {
+  if (await hasRecentDownload(input)) {
+    return false;
+  }
   await getDb().insert(downloadEvents).values(input);
+  return true;
 }
 
 export async function watchCountsForToday(input: {

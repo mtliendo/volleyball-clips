@@ -84,6 +84,22 @@ function playTagKey(clips: PublicClip[]) {
     .join(",");
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function keyDelta(key: string) {
+  if (key === "ArrowDown" || key === "PageDown" || key === "j" || key === "J") {
+    return 1;
+  }
+  if (key === "ArrowUp" || key === "PageUp" || key === "k" || key === "K") {
+    return -1;
+  }
+  return 0;
+}
+
 export function VerticalFeed({
   clips,
   startId,
@@ -131,6 +147,7 @@ export function VerticalFeed({
     setTagsByClip(tagSeed(clips));
   }
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
+  const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
   const [tagPending, setTagPending] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
@@ -299,6 +316,10 @@ export function VerticalFeed({
       observer.observe(child);
     }
     playIndex(activeIndexRef.current);
+    const current = clipsRef.current[activeIndexRef.current];
+    if (current) {
+      syncUrl(current.id);
+    }
     return () => observer.disconnect();
   }, [clips, playIndex, syncUrl]);
 
@@ -325,6 +346,40 @@ export function VerticalFeed({
       cancelled = true;
     };
   }, [active, viewer.watchUnlimited]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (tagSheetOpen) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (isEditableTarget(event.target)) return;
+
+      const delta = keyDelta(event.key);
+      if (!delta) return;
+
+      event.preventDefault();
+      const max = clipsRef.current.length - 1;
+      const next = Math.min(max, Math.max(0, activeIndexRef.current + delta));
+      if (next === activeIndexRef.current) return;
+
+      const root = scroller.current;
+      const slide =
+        slides.current[next] ?? (root?.children[next] as HTMLElement | undefined);
+      if (root && slide) {
+        root.scrollTop = slide.offsetTop;
+      }
+
+      activeIndexRef.current = next;
+      playIndex(next);
+      const clip = clipsRef.current[next];
+      if (clip) {
+        syncUrl(clip.id);
+      }
+      setActiveIndex(next);
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [playIndex, syncUrl, tagSheetOpen]);
 
   const blocked =
     !viewer.watchUnlimited &&
@@ -556,9 +611,10 @@ export function VerticalFeed({
             clipId={active.id}
             canDownload={viewer.canDownload}
             isPro={viewer.isPro}
-            remaining={viewer.downloadsRemaining}
+            remaining={downloadsRemaining}
             returnTo={`/games/${gameId}/watch/${active.id}`}
             compact
+            onRemainingChange={setDownloadsRemaining}
           />
         </div>
       </div>
@@ -571,10 +627,6 @@ export function VerticalFeed({
         >
           Sound is off
         </button>
-      ) : viewer.downloadsRemaining !== null && viewer.canDownload ? (
-        <p className="pointer-events-none absolute bottom-5 left-4 z-(--z-raised) text-xs text-muted">
-          {viewer.downloadsRemaining} downloads left this week
-        </p>
       ) : null}
 
       {blocked ? (

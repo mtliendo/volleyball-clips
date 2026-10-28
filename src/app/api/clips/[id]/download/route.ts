@@ -1,25 +1,90 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/admin";
 import { cdnUrl } from "@/lib/cdn";
 import { FREE_DOWNLOADS_PER_WEEK } from "@/lib/db/schema";
+import {
+  DOWNLOADS_REMAINING_HEADER,
+  VERIFY_DOWNLOADS_COOKIE,
+  contentDispositionAttachment,
+  downloadFilename,
+} from "@/lib/download";
 import { hasProAccess } from "@/lib/entitlements";
 import { isDatabaseConfigured } from "@/lib/env";
-import { countDownloadsThisWeek, recordDownload } from "@/lib/limits";
+import { countDownloadsThisWeek, hasRecentDownload, recordDownload } from "@/lib/limits";
 import { getReadyClip } from "@/lib/queries";
 import { isAdmin } from "@/lib/roles";
 import { ensureAppUser } from "@/lib/users";
+
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
+const LIMIT_BODY = {
+  error: "Weekly download limit reached",
+  remaining: 0,
+  upgrade: true,
+} as const;
+
+function attachmentResponse(
+  body: BodyInit,
+  input: {
+    filename: string;
+    remaining: number | null;
+    contentType?: string | null;
+    contentLength?: string | null;
+  },
+) {
+  const headers = new Headers();
+  headers.set("Content-Type", input.contentType || "video/mp4");
+  headers.set("Content-Disposition", contentDispositionAttachment(input.filename));
+  headers.set("Cache-Control", "private, no-store");
+  if (input.remaining !== null) {
+    headers.set(DOWNLOADS_REMAINING_HEADER, String(input.remaining));
+  }
+  if (input.contentLength) {
+    headers.set("Content-Length", input.contentLength);
+  }
+  return new NextResponse(body, { status: 200, headers });
+}
+
+async function verifyHarnessDownload(id: string) {
+  const jar = await cookies();
+  const stored = Number(jar.get(VERIFY_DOWNLOADS_COOKIE)?.value ?? "3");
+  const remaining = Number.isFinite(stored) ? stored : 3;
+  if (remaining <= 0) {
+    return NextResponse.json(LIMIT_BODY, { status: 402 });
+  }
+
+  const next = remaining - 1;
+  const response = attachmentResponse(Buffer.from("vbpov-verify-clip\n"), {
+    filename: downloadFilename({
+      id,
+      originalKey: "clip.mp4",
+      quality: "playback",
+    }),
+    remaining: next,
+    contentType: "video/mp4",
+  });
+  response.cookies.set(VERIFY_DOWNLOADS_COOKIE, String(next), { path: "/" });
+  return response;
+}
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
+
+  if (process.env.VERIFY_FEED_HARNESS === "1") {
+    return verifyHarnessDownload(id);
+  }
+
   const { session, error } = await requireUserApi();
   if (error) return error;
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
   }
 
-  const { id } = await params;
   const clip = await getReadyClip(id);
   if (!clip) {
     return NextResponse.json({ error: "Clip not found" }, { status: 404 });
@@ -35,30 +100,43 @@ export async function GET(
   const quality = pro ? "original" : "playback";
   const key = pro ? clip.originalKey : clip.playbackKey;
   const url = cdnUrl(key);
+  const filename = downloadFilename({
+    id: clip.id,
+    originalKey: clip.originalKey,
+    quality,
+  });
 
   if (!url) {
     return NextResponse.json({ error: "Download is not available yet" }, { status: 409 });
   }
 
-  if (!pro) {
+  const event = { userId: appUser.id, clipId: clip.id, quality } as const;
+  const recent = await hasRecentDownload(event);
+
+  if (!pro && !recent) {
     const used = await countDownloadsThisWeek(appUser.id);
     if (used >= FREE_DOWNLOADS_PER_WEEK) {
-      return NextResponse.json(
-        {
-          error: "Weekly download limit reached",
-          remaining: 0,
-          upgrade: true,
-        },
-        { status: 402 },
-      );
+      return NextResponse.json(LIMIT_BODY, { status: 402 });
     }
   }
 
-  await recordDownload({
-    userId: appUser.id,
-    clipId: clip.id,
-    quality,
-  });
+  const upstream = await fetch(url);
+  if (!upstream.ok || !upstream.body) {
+    return NextResponse.json({ error: "Download is not available yet" }, { status: 409 });
+  }
 
-  return NextResponse.redirect(url);
+  if (!recent) {
+    await recordDownload(event);
+  }
+
+  const remaining = pro
+    ? null
+    : Math.max(0, FREE_DOWNLOADS_PER_WEEK - (await countDownloadsThisWeek(appUser.id)));
+
+  return attachmentResponse(upstream.body, {
+    filename,
+    remaining,
+    contentType: upstream.headers.get("content-type"),
+    contentLength: upstream.headers.get("content-length"),
+  });
 }

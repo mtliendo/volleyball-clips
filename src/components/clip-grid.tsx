@@ -25,6 +25,7 @@ export function ClipGrid({
   canManage?: boolean;
 }) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
 
   const filtered = useMemo(() => {
     if (!activeTag) return clips;
@@ -111,9 +112,10 @@ export function ClipGrid({
                         clipId={clip.id}
                         canDownload={viewer.canDownload}
                         isPro={viewer.isPro}
-                        remaining={viewer.downloadsRemaining}
+                        remaining={downloadsRemaining}
                         returnTo={href}
                         compact
+                        onRemainingChange={setDownloadsRemaining}
                       />
                       {canManage ? <DeleteClipButton clipId={clip.id} /> : null}
                     </div>
