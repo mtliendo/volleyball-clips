@@ -12,7 +12,7 @@ export function SiteChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const watch = pathname.includes("/watch/");
+  const watch = pathname.includes("/watch/") || pathname.startsWith("/dev/feed");
 
   if (watch) {
     return <>{children}</>;
