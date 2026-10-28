@@ -4,6 +4,7 @@ import { requireAdminApi } from "@/lib/admin";
 import { getDb } from "@/lib/db";
 import { clips, games } from "@/lib/db/schema";
 import { isDatabaseConfigured, isS3Configured } from "@/lib/env";
+import { omitOriginalKey } from "@/lib/clip-public";
 import { assertUploadAllowed, originalKey, presignPut } from "@/lib/s3";
 import { eq } from "drizzle-orm";
 
@@ -77,6 +78,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     uploadUrl,
     contentType,
-    clip,
+    clip: omitOriginalKey(clip),
   });
 }

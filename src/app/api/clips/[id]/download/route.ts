@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/admin";
-import { cdnUrl } from "@/lib/cdn";
+import { originalObjectUrl, playbackObjectUrl } from "@/lib/cloudfront-sign";
 import { FREE_DOWNLOADS_PER_WEEK } from "@/lib/db/schema";
 import {
   DOWNLOADS_REMAINING_HEADER,
@@ -79,8 +79,28 @@ async function verifyHarnessDownload(id: string) {
   return response;
 }
 
+function parseQuality(
+  request: Request,
+  pro: boolean,
+): "original" | "playback" | NextResponse {
+  const requested = new URL(request.url).searchParams.get("quality");
+  if (requested && requested !== "original" && requested !== "playback") {
+    return NextResponse.json({ error: "Invalid quality" }, { status: 400 });
+  }
+  if (requested === "original" && !pro) {
+    return NextResponse.json(
+      { error: "Original downloads require Pro" },
+      { status: 403 },
+    );
+  }
+  if (requested === "playback") {
+    return "playback";
+  }
+  return pro ? "original" : "playback";
+}
+
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -107,14 +127,30 @@ export async function GET(
 
   const admin = isAdmin(session.user);
   const pro = admin || hasProAccess(appUser);
-  const quality = pro ? "original" : "playback";
-  const key = pro ? clip.originalKey : clip.playbackKey;
-  const url = cdnUrl(key);
+  const quality = parseQuality(request, pro);
+  if (quality instanceof NextResponse) {
+    return quality;
+  }
+  const key = quality === "original" ? clip.originalKey : clip.playbackKey;
   const filename = downloadFilename({
     id: clip.id,
     originalKey: clip.originalKey,
     quality,
   });
+
+  let url = "";
+  try {
+    if (!key) {
+      url = "";
+    } else if (quality === "original") {
+      url = originalObjectUrl(key);
+    } else {
+      url = playbackObjectUrl(key);
+    }
+  } catch (err) {
+    console.error("download origin url failed", err);
+    return NextResponse.json({ error: "Download is not available yet" }, { status: 503 });
+  }
 
   if (!url) {
     return NextResponse.json({ error: "Download is not available yet" }, { status: 409 });

@@ -12,6 +12,7 @@ import {
   venues,
   type PinLabel,
 } from "./db/schema";
+import { omitOriginalKey } from "./clip-public";
 import { isDatabaseConfigured } from "./env";
 import { monthRange } from "./dates";
 import { isUuid } from "./ids";
@@ -32,7 +33,6 @@ export type ClipPin = {
 export type PublicClip = {
   id: string;
   gameId: string;
-  originalKey: string;
   playbackKey: string | null;
   posterKey: string | null;
   durationMs: number | null;
@@ -176,7 +176,7 @@ export async function listGameClips(
 
   return clipRows
     .map((clip) => ({
-      ...clip,
+      ...omitOriginalKey(clip),
       tags: tagsByClip.get(clip.id) ?? [],
       pin: pinByClip.get(clip.id) ?? null,
       favorited: favoriteSet.has(clip.id),
@@ -255,7 +255,7 @@ export async function listFavoriteClips(userId: string): Promise<
   }
 
   return rows.map((row) => ({
-    ...row.clip,
+    ...omitOriginalKey(row.clip),
     tags: tagsByClip.get(row.clip.id) ?? [],
     pin: pinByClip.get(row.clip.id) ?? null,
     favorited: true,

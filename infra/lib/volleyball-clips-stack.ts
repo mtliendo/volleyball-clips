@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as cdk from "aws-cdk-lib";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
@@ -11,6 +12,52 @@ import { Construct } from "constructs";
 /** Create once: `aws ssm put-parameter --name … --type SecureString`. CloudFormation cannot. */
 export const TRANSCODE_WEBHOOK_SECRET_PARAMETER =
   "/volleyball-clips/transcode-webhook-secret";
+
+function decodePemInput(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.includes("BEGIN")) {
+    return trimmed.replace(/\\n/g, "\n");
+  }
+  const decoded = Buffer.from(trimmed, "base64").toString("utf8");
+  if (decoded.includes("BEGIN")) {
+    return decoded;
+  }
+  return trimmed.replace(/\\n/g, "\n");
+}
+
+/** Public key only. Never pass the private key as context. */
+export function readCloudFrontPublicKeyPem(scope: Construct) {
+  const rawPem = scope.node.tryGetContext("cloudfrontPublicKeyPem") as
+    | string
+    | undefined;
+  const keyPath = scope.node.tryGetContext("cloudfrontPublicKeyPath") as
+    | string
+    | undefined;
+
+  let pem = "";
+  if (typeof rawPem === "string" && rawPem.trim()) {
+    pem = decodePemInput(rawPem);
+  } else if (typeof keyPath === "string" && keyPath.trim()) {
+    const resolved = path.isAbsolute(keyPath)
+      ? keyPath
+      : path.resolve(process.cwd(), keyPath);
+    if (!fs.existsSync(resolved)) {
+      throw new Error(`cloudfrontPublicKeyPath not found: ${resolved}`);
+    }
+    pem = decodePemInput(fs.readFileSync(resolved, "utf8"));
+  } else {
+    throw new Error(
+      "VolleyballClipsStack needs a CloudFront public key. Pass -c cloudfrontPublicKeyPath=/path/to/cloudfront-public.pem or -c cloudfrontPublicKeyPem='-----BEGIN PUBLIC KEY-----\\n...'. Do not pass or commit the private key.",
+    );
+  }
+
+  if (!pem.includes("BEGIN PUBLIC KEY") && !pem.includes("BEGIN RSA PUBLIC KEY")) {
+    throw new Error(
+      "CloudFront public key must be a PEM public key (BEGIN PUBLIC KEY).",
+    );
+  }
+  return pem;
+}
 
 export class VolleyballClipsStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -35,6 +82,10 @@ export class VolleyballClipsStack extends cdk.Stack {
     const existingOidcArn = this.node.tryGetContext("vercelOidcProviderArn") as
       | string
       | undefined;
+    const publicKeyPem = readCloudFrontPublicKeyPem(this);
+    const lockUploads =
+      String(this.node.tryGetContext("lockUploads") ?? "true").toLowerCase() !==
+      "false";
 
     const bucket = new s3.Bucket(this, "MediaBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -172,6 +223,16 @@ export class VolleyballClipsStack extends cdk.Stack {
       },
     });
 
+    const signingPublicKey = new cloudfront.PublicKey(this, "SigningPublicKey", {
+      comment:
+        "volleyball-clips signing key (uploads phase 1; reuse for playback phase 2)",
+      encodedKey: publicKeyPem,
+    });
+    const signingKeyGroup = new cloudfront.KeyGroup(this, "SigningKeyGroup", {
+      comment: "Trusted signers for originals now, playback later",
+      items: [signingPublicKey],
+    });
+
     const distribution = new cloudfront.Distribution(this, "Cdn", {
       comment: "volleyball-clips media",
       defaultBehavior: {
@@ -192,6 +253,8 @@ export class VolleyballClipsStack extends cdk.Stack {
           responseHeadersPolicy: downloadHeaders,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+          // Phase 2: attach the same key group to playback/* (or default).
+          trustedKeyGroups: lockUploads ? [signingKeyGroup] : undefined,
         },
       },
     });
@@ -263,6 +326,14 @@ export class VolleyballClipsStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, "NEXT_PUBLIC_CDN_URL", {
       value: `https://${distribution.distributionDomainName}`,
+    });
+    new cdk.CfnOutput(this, "CLOUDFRONT_KEY_PAIR_ID", {
+      value: signingPublicKey.publicKeyId,
+      description: "Set CLOUDFRONT_KEY_PAIR_ID in Vercel (preview + production)",
+    });
+    new cdk.CfnOutput(this, "CLOUDFRONT_UPLOADS_LOCKED", {
+      value: lockUploads ? "true" : "false",
+      description: "Unsigned uploads/* requests fail with 403 when true",
     });
     new cdk.CfnOutput(this, "TRANSCODE_WEBHOOK_SECRET_PARAMETER", {
       value: TRANSCODE_WEBHOOK_SECRET_PARAMETER,

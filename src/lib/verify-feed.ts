@@ -37,7 +37,6 @@ export function verifyClips(): PublicClip[] {
   return VERIFY_CLIP_IDS.map((id, index) => ({
     id,
     gameId: VERIFY_GAME_ID,
-    originalKey: `uploads/${VERIFY_GAME_ID}/${id}/clip.mp4`,
     playbackKey: `playback/${VERIFY_GAME_ID}/${id}/playback.mp4`,
     posterKey: null,
     durationMs: 8000,
