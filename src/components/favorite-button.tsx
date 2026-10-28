@@ -9,21 +9,27 @@ export function FavoriteButton({
   favorited,
   canFavorite,
   returnTo,
+  onFavoritedChange,
 }: {
   clipId: string;
   favorited: boolean;
   canFavorite: boolean;
   returnTo: string;
+  onFavoritedChange?: (clipId: string, favorited: boolean) => void;
 }) {
   const router = useRouter();
-  const [on, setOn] = useState(favorited);
-  const [pending, setPending] = useState(false);
+  const [byClip, setByClip] = useState<Record<string, boolean>>({});
+  const [pendingByClip, setPendingByClip] = useState<Record<string, boolean>>({});
+  const on = byClip[clipId] ?? favorited;
+  const pending = Boolean(pendingByClip[clipId]);
 
   if (!canFavorite) {
     return (
       <a
         href={authLoginHref({ returnTo, signup: true })}
         className="icon-btn"
+        data-favorite-control=""
+        data-clip-id={clipId}
         aria-label="Sign in to favorite"
       >
         <HeartIcon filled={false} />
@@ -31,19 +37,28 @@ export function FavoriteButton({
     );
   }
 
+  function write(clip: string, next: boolean) {
+    setByClip((prev) => ({ ...prev, [clip]: next }));
+    onFavoritedChange?.(clip, next);
+  }
+
   async function toggle() {
-    setPending(true);
     const next = !on;
-    setOn(next);
-    const response = await fetch("/api/favorites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clipId }),
-    });
-    if (!response.ok) {
-      setOn(!next);
+    setPendingByClip((prev) => ({ ...prev, [clipId]: true }));
+    write(clipId, next);
+    try {
+      const response = await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clipId }),
+      });
+      if (!response.ok) {
+        write(clipId, !next);
+      }
+    } catch {
+      write(clipId, !next);
     }
-    setPending(false);
+    setPendingByClip((prev) => ({ ...prev, [clipId]: false }));
     router.refresh();
   }
 
@@ -51,6 +66,8 @@ export function FavoriteButton({
     <button
       type="button"
       className="icon-btn"
+      data-favorite-control=""
+      data-clip-id={clipId}
       aria-pressed={on}
       aria-label={on ? "Remove favorite" : "Save favorite"}
       disabled={pending}

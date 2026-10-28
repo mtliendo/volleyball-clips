@@ -17,7 +17,12 @@ export function DownloadButton({
 }) {
   if (!canDownload) {
     return (
-      <a href={authLoginHref({ returnTo, signup: true })} className={compact ? "icon-btn" : "btn btn-ghost"}>
+      <a
+        href={authLoginHref({ returnTo, signup: true })}
+        className={compact ? "icon-btn" : "btn btn-ghost"}
+        data-download-control=""
+        data-clip-id={clipId}
+      >
         {compact ? <DownloadIcon /> : "Sign in to download"}
       </a>
     );
@@ -33,6 +38,8 @@ export function DownloadButton({
     <a
       href={`/api/clips/${clipId}/download`}
       className={compact ? "icon-btn" : "btn btn-ghost"}
+      data-download-control=""
+      data-clip-id={clipId}
       aria-label={isPro ? "Download original" : "Download 1080p"}
     >
       {compact ? <DownloadIcon /> : `Download ${label}`}

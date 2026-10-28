@@ -77,6 +77,15 @@ export function VerticalFeed({
   const [watchState, setWatchState] = useState<{ clipId: string; blocked: boolean } | null>(
     null,
   );
+  const serverFavKey = clips.map((clip) => `${clip.id}:${clip.favorited ? 1 : 0}`).join(",");
+  const [favoritedIds, setFavoritedIds] = useState(
+    () => new Set(clips.filter((clip) => clip.favorited).map((clip) => clip.id)),
+  );
+  const [seededFavKey, setSeededFavKey] = useState(serverFavKey);
+  if (seededFavKey !== serverFavKey) {
+    setSeededFavKey(serverFavKey);
+    setFavoritedIds(new Set(clips.filter((clip) => clip.favorited).map((clip) => clip.id)));
+  }
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
   const playerRef = useRef<HTMLVideoElement | null>(null);
@@ -315,7 +324,7 @@ export function VerticalFeed({
   }
 
   return (
-    <div className="feed-root">
+    <div className="feed-root" data-active-clip={active.id}>
       <div ref={scroller} className="feed-scroller">
         {clips.map((clip, index) => {
           const playback = cdnUrl(clip.playbackKey);
@@ -372,7 +381,7 @@ export function VerticalFeed({
           Close
         </Link>
         {active.pin ? (
-          <span className="chip-spark pointer-events-none">
+          <span className="chip-spark pointer-events-none" data-pin-badge={active.pin.label ?? "pinned"}>
             {active.pin.label ? PIN_LABEL_COPY[active.pin.label] : "Pinned"}
           </span>
         ) : null}
@@ -398,9 +407,20 @@ export function VerticalFeed({
         <div className="pointer-events-auto">
           <FavoriteButton
             clipId={active.id}
-            favorited={active.favorited}
+            favorited={favoritedIds.has(active.id)}
             canFavorite={viewer.canFavorite}
             returnTo={`/games/${gameId}/watch/${active.id}`}
+            onFavoritedChange={(clipId, next) => {
+              setFavoritedIds((prev) => {
+                const copy = new Set(prev);
+                if (next) {
+                  copy.add(clipId);
+                } else {
+                  copy.delete(clipId);
+                }
+                return copy;
+              });
+            }}
           />
         </div>
         <div className="pointer-events-auto">
