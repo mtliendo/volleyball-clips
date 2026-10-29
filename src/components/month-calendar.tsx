@@ -64,7 +64,7 @@ export function MonthCalendar({
           return (
             <Link
               key={key}
-              href={`/?ym=${ym}&d=${key}`}
+              href={hasGames ? `/?ym=${ym}&d=${key}#night-sessions` : `/?ym=${ym}&d=${key}`}
               scroll={false}
               data-night-day={key}
               aria-current={selected ? "date" : undefined}

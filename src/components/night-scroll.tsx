@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 const STICKY_NAV = 56;
 const EDGE_GAP = 12;
+
+let pendingRevealDay: string | null = null;
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -20,6 +23,13 @@ function revealElement(el: HTMLElement, { focus = false } = {}) {
   }
 }
 
+function revealSessions() {
+  const heading = document.getElementById("night-sessions");
+  if (heading instanceof HTMLElement) {
+    revealElement(heading, { focus: true });
+  }
+}
+
 export function NightScroll({
   selectedDay,
   sessionDays,
@@ -27,11 +37,11 @@ export function NightScroll({
   selectedDay?: string;
   sessionDays: string[];
 }) {
-  const pendingDay = useRef<string | null>(null);
-  const sessionSet = useRef(new Set(sessionDays));
-  sessionSet.current = new Set(sessionDays);
+  const urlDay = useSearchParams().get("d");
 
   useEffect(() => {
+    const sessionSet = new Set(sessionDays);
+
     function onClick(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) {
@@ -55,40 +65,43 @@ export function NightScroll({
         return;
       }
       const day = dayLink.dataset.nightDay;
-      if (!day || !sessionSet.current.has(day)) {
+      if (!day || !sessionSet.has(day)) {
         return;
       }
 
-      pendingDay.current = day;
+      pendingRevealDay = day;
       if (day === selectedDay) {
-        const heading = document.getElementById("night-sessions");
-        if (heading instanceof HTMLElement) {
-          revealElement(heading, { focus: true });
-        }
+        revealSessions();
       }
     }
 
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
-  }, [selectedDay]);
+  }, [selectedDay, sessionDays]);
 
   useEffect(() => {
-    if (!selectedDay || pendingDay.current !== selectedDay) {
+    if (!pendingRevealDay) {
+      return;
+    }
+    if (pendingRevealDay !== selectedDay && pendingRevealDay !== urlDay) {
       return;
     }
 
-    pendingDay.current = null;
-    const heading = document.getElementById("night-sessions");
-    if (!(heading instanceof HTMLElement)) {
-      return;
-    }
+    const timers = [0, 80, 200].map((ms) =>
+      window.setTimeout(() => {
+        revealSessions();
+        if (ms === 200) {
+          pendingRevealDay = null;
+        }
+      }, ms),
+    );
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        revealElement(heading, { focus: true });
-      });
-    });
-  }, [selectedDay]);
+    return () => {
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [selectedDay, urlDay]);
 
   return null;
 }

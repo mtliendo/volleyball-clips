@@ -1,6 +1,7 @@
 import { TZDate } from "@date-fns/tz";
 import Link from "next/link";
 import { connection } from "next/server";
+import { Suspense } from "react";
 import { TrackLink } from "@/components/track-click";
 import { GameList } from "@/components/game-list";
 import { MonthCalendar } from "@/components/month-calendar";
@@ -41,7 +42,9 @@ export default async function HomePage({
 
   return (
     <>
-      <NightScroll selectedDay={selectedDay} sessionDays={sessionDays} />
+      <Suspense fallback={null}>
+        <NightScroll selectedDay={selectedDay} sessionDays={sessionDays} />
+      </Suspense>
       <section className="hero-court">
         {posters.length > 0 ? (
           <ul className="hero-stack">
@@ -94,7 +97,7 @@ export default async function HomePage({
           games={games.map((game) => ({ id: game.id, day: dayKey(game.startsAt) }))}
         />
         {selectedDay ? (
-          <section className="space-y-3">
+          <section className="max-md:min-h-[calc(100svh-5.5rem)] space-y-3">
             <h2
               id="night-sessions"
               tabIndex={-1}
