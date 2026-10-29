@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { CheckoutButton, PortalButton } from "@/components/billing-buttons";
-import { TrackAnchor } from "@/components/track-click";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { trackServerEvent } from "@/lib/analytics-server";
-import { authLoginHref } from "@/lib/auth-urls";
 import { getViewer } from "@/lib/entitlements";
 
 export const metadata: Metadata = {
@@ -68,13 +67,14 @@ export default async function PricingPage({
           {viewer.signedIn ? (
             <p className="meta">You are signed in.</p>
           ) : (
-            <TrackAnchor
-              href={authLoginHref({ returnTo: "/pricing", signup: true })}
+            <AuthLoginAnchor
+              returnTo="/pricing"
+              signup
               event={ANALYTICS_EVENTS.signupClick}
               className="btn btn-primary mt-auto"
             >
               Make a free account
-            </TrackAnchor>
+            </AuthLoginAnchor>
           )}
         </li>
         <li className="flex flex-col gap-4 rounded-card bg-accent p-6 text-accent-ink lg:min-h-full">

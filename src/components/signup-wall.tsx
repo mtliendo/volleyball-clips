@@ -1,8 +1,7 @@
 "use client";
 
-import { TrackAnchor } from "@/components/track-click";
+import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
-import { authLoginHref } from "@/lib/auth-urls";
 
 export function SignupWall({ returnTo }: { returnTo: string }) {
   return (
@@ -13,20 +12,21 @@ export function SignupWall({ returnTo }: { returnTo: string }) {
           Make a free account to keep watching and to save favorites.
         </p>
         <div className="flex flex-col gap-2">
-          <TrackAnchor
-            href={authLoginHref({ returnTo, signup: true })}
+          <AuthLoginAnchor
+            returnTo={returnTo}
+            signup
             event={ANALYTICS_EVENTS.signupClick}
             className="btn btn-primary"
           >
             Make a free account
-          </TrackAnchor>
-          <TrackAnchor
-            href={authLoginHref({ returnTo })}
+          </AuthLoginAnchor>
+          <AuthLoginAnchor
+            returnTo={returnTo}
             event={ANALYTICS_EVENTS.signInClick}
             className="btn btn-ghost"
           >
             Sign in
-          </TrackAnchor>
+          </AuthLoginAnchor>
           <a href={returnTo.replace(/\/watch\/[^/?]+/, "")} className="btn btn-ghost">
             Back to the session
           </a>

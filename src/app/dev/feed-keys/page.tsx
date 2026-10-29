@@ -59,6 +59,7 @@ export default async function VerifyFeedKeysPage({
           isPro: as === "pro",
           signedIn: as !== "guest",
           watchUnlimited: wall !== "watch" && as !== "guest",
+          canFavorite: as !== "guest",
           canDownload: as !== "guest",
           downloadsRemaining: as === "pro" ? null : remaining,
           nextDownloadAt,

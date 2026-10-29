@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
-import { TrackAnchor } from "@/components/track-click";
 import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
-import { authLoginHref } from "@/lib/auth-urls";
 import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/lib/download";
 
 const PREPARING_LABEL = "Preparing download...";
@@ -45,15 +44,17 @@ export function DownloadButton({
 
   if (!canDownload) {
     return (
-      <TrackAnchor
-        href={authLoginHref({ returnTo, signup: true })}
+      <AuthLoginAnchor
+        returnTo={returnTo}
+        signup
         event={ANALYTICS_EVENTS.signupClick}
         className={compact ? "icon-btn" : "btn btn-ghost"}
         data-download-control=""
         data-clip-id={clipId}
+        aria-label="Sign in to download"
       >
         {compact ? <DownloadIcon /> : "Sign in to download"}
-      </TrackAnchor>
+      </AuthLoginAnchor>
     );
   }
 

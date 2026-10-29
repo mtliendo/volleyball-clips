@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { TrackAnchor } from "@/components/track-click";
+import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
-import { authLoginHref } from "@/lib/auth-urls";
 
 export function CheckoutButton({
   signedIn,
@@ -19,13 +18,14 @@ export function CheckoutButton({
 
   if (!signedIn) {
     return (
-      <TrackAnchor
-        href={authLoginHref({ returnTo: "/pricing", signup: true })}
+      <AuthLoginAnchor
+        returnTo="/pricing"
+        signup
         event={ANALYTICS_EVENTS.signupClick}
         className="btn btn-spark w-full"
       >
         Make a free account first
-      </TrackAnchor>
+      </AuthLoginAnchor>
     );
   }
 
