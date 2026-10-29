@@ -335,6 +335,20 @@ h3 { max-width: 28ch; }
   color: var(--color-ink);
 }
 
+.feed-swipe-hint-copy-fine {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .feed-swipe-hint-copy-coarse {
+    display: none;
+  }
+
+  .feed-swipe-hint-copy-fine {
+    display: block;
+  }
+}
+
 .feed-swipe-hint-mark {
   color: var(--color-ink);
   animation: feed-hint-nudge 1.15s var(--ease-out) infinite;

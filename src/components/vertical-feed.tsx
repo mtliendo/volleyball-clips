@@ -211,8 +211,6 @@ export function VerticalFeed({
   );
   const [tagPending, setTagPending] = useState(false);
   const [hintVisible, setHintVisible] = useState(false);
-  const [finePointer, setFinePointer] = useState(false);
-  const hintVisibleRef = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
   const playerRef = useRef<HTMLVideoElement | null>(null);
@@ -236,7 +234,7 @@ export function VerticalFeed({
       watchState?.clipId === active?.id &&
       watchState.blocked);
   const showHint =
-    hintVisible && !blocked && !downloadLimit && !tagSheetOpen;
+    hintVisible && clips.length >= 2 && !blocked && !downloadLimit && !tagSheetOpen;
 
   const srcForClip = useCallback((clip: PublicClip | undefined) => {
     if (!clip) return "";
@@ -332,11 +330,15 @@ export function VerticalFeed({
   );
 
   const dismissHint = useCallback(() => {
-    if (!hintVisibleRef.current) return;
-    hintVisibleRef.current = false;
     setHintVisible(false);
     writeSwipeHintSeen();
   }, []);
+
+  useEffect(() => {
+    if (clips.length < 2 || swipeHintSeen()) return;
+    const timer = window.setTimeout(() => setHintVisible(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [clips.length]);
 
   useLayoutEffect(() => {
     clipsRef.current = clips;
@@ -344,17 +346,6 @@ export function VerticalFeed({
     requireSignedRef.current = requireSignedPlayback;
     playbackByIdRef.current = playbackById;
   }, [clips, playIndex, playbackById, requireSignedPlayback]);
-
-  useLayoutEffect(() => {
-    setFinePointer(window.matchMedia("(pointer: fine)").matches);
-    if (clips.length < 2 || swipeHintSeen()) {
-      hintVisibleRef.current = false;
-      setHintVisible(false);
-      return;
-    }
-    hintVisibleRef.current = true;
-    setHintVisible(true);
-  }, [clips.length]);
 
   useLayoutEffect(() => {
     const root = scroller.current;
@@ -843,7 +834,7 @@ export function VerticalFeed({
         </button>
       ) : null}
 
-      {showHint ? <FeedSwipeHint finePointer={finePointer} /> : null}
+      {showHint ? <FeedSwipeHint /> : null}
 
       {blocked ? (
         <div className="absolute inset-0 z-(--z-modal)">
@@ -876,13 +867,9 @@ export function VerticalFeed({
   );
 }
 
-function FeedSwipeHint({ finePointer }: { finePointer: boolean }) {
+function FeedSwipeHint() {
   // Keyboard arrows already move the feed, but nothing on screen says so.
-  // Fine pointers get scroll/keys copy; coarse pointers get the swipe line.
-  const copy = finePointer
-    ? "Scroll or use the arrow keys"
-    : "Swipe up for the next clip";
-
+  // Fine pointers get scroll/keys copy via CSS; coarse pointers get swipe.
   return (
     <div
       className="feed-swipe-hint"
@@ -893,7 +880,12 @@ function FeedSwipeHint({ finePointer }: { finePointer: boolean }) {
       <span className="feed-swipe-hint-mark" aria-hidden="true">
         <SwipeHintIcon />
       </span>
-      <p className="feed-swipe-hint-copy">{copy}</p>
+      <p className="feed-swipe-hint-copy feed-swipe-hint-copy-coarse">
+        Swipe up for the next clip
+      </p>
+      <p className="feed-swipe-hint-copy feed-swipe-hint-copy-fine">
+        Scroll or use the arrow keys
+      </p>
     </div>
   );
 }
