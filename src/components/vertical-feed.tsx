@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { DownloadButton } from "@/components/download-button";
+import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
 import { FeedTagSheet, type CatalogTag } from "@/components/feed-tag-sheet";
@@ -688,6 +688,7 @@ export function VerticalFeed({
 
   return (
     <div className="feed-root" data-active-clip={active.id}>
+      <ShareDebugReadout />
       <div ref={scroller} className="feed-scroller">
         {clips.map((clip, index) => {
           const grant = playbackById[clip.id];
