@@ -22,12 +22,30 @@ import {
 import type { ClipPin, PublicClip } from "@/lib/queries";
 
 const SOUND_KEY = "vbpov-sound";
+const SWIPE_HINT_KEY = "vbpov-swipe-hint";
+const SWIPE_HINT_MS = 4000;
 const PRELOAD_WINDOW = 1;
 const CLIP_VIEW_THROTTLE_MS = 500;
 
 function writeSoundPref(on: boolean) {
   try {
     window.localStorage.setItem(SOUND_KEY, on ? "on" : "off");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function swipeHintSeen() {
+  try {
+    return window.localStorage.getItem(SWIPE_HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSwipeHintSeen() {
+  try {
+    window.localStorage.setItem(SWIPE_HINT_KEY, "1");
   } catch {
     /* ignore quota / private mode */
   }
@@ -192,6 +210,9 @@ export function VerticalFeed({
     forceWall === "download" ? { nextAt: viewer.nextDownloadAt } : null,
   );
   const [tagPending, setTagPending] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
+  const [finePointer, setFinePointer] = useState(false);
+  const hintVisibleRef = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
   const slides = useRef<(HTMLElement | null)[]>([]);
   const playerRef = useRef<HTMLVideoElement | null>(null);
@@ -208,6 +229,14 @@ export function VerticalFeed({
   const errorRetriesRef = useRef<Record<string, number>>({});
 
   const active = clips[activeIndex];
+  const blocked =
+    forceWall === "watch" ||
+    (!viewer.watchUnlimited &&
+      Boolean(active) &&
+      watchState?.clipId === active?.id &&
+      watchState.blocked);
+  const showHint =
+    hintVisible && !blocked && !downloadLimit && !tagSheetOpen;
 
   const srcForClip = useCallback((clip: PublicClip | undefined) => {
     if (!clip) return "";
@@ -302,12 +331,30 @@ export function VerticalFeed({
     [gameId, tag],
   );
 
+  const dismissHint = useCallback(() => {
+    if (!hintVisibleRef.current) return;
+    hintVisibleRef.current = false;
+    setHintVisible(false);
+    writeSwipeHintSeen();
+  }, []);
+
   useLayoutEffect(() => {
     clipsRef.current = clips;
     playIndexRef.current = playIndex;
     requireSignedRef.current = requireSignedPlayback;
     playbackByIdRef.current = playbackById;
   }, [clips, playIndex, playbackById, requireSignedPlayback]);
+
+  useLayoutEffect(() => {
+    setFinePointer(window.matchMedia("(pointer: fine)").matches);
+    if (clips.length < 2 || swipeHintSeen()) {
+      hintVisibleRef.current = false;
+      setHintVisible(false);
+      return;
+    }
+    hintVisibleRef.current = true;
+    setHintVisible(true);
+  }, [clips.length]);
 
   useLayoutEffect(() => {
     const root = scroller.current;
@@ -490,6 +537,29 @@ export function VerticalFeed({
   }, [active, gameId]);
 
   useEffect(() => {
+    if (!showHint) return;
+
+    const root = scroller.current?.parentElement;
+    const timer = window.setTimeout(dismissHint, SWIPE_HINT_MS);
+    const onDismiss = () => dismissHint();
+    const onKey = (event: KeyboardEvent) => {
+      if (keyDelta(event.key)) dismissHint();
+    };
+
+    root?.addEventListener("pointerdown", onDismiss);
+    root?.addEventListener("wheel", onDismiss, { passive: true });
+    root?.addEventListener("touchmove", onDismiss, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(timer);
+      root?.removeEventListener("pointerdown", onDismiss);
+      root?.removeEventListener("wheel", onDismiss);
+      root?.removeEventListener("touchmove", onDismiss);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [dismissHint, showHint]);
+
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (tagSheetOpen || downloadLimit) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -522,13 +592,6 @@ export function VerticalFeed({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [downloadLimit, playIndex, syncUrl, tagSheetOpen]);
-
-  const blocked =
-    forceWall === "watch" ||
-    (!viewer.watchUnlimited &&
-      Boolean(active) &&
-      watchState?.clipId === active?.id &&
-      watchState.blocked);
 
   function setSound(next: boolean) {
     const player = playerRef.current;
@@ -780,6 +843,8 @@ export function VerticalFeed({
         </button>
       ) : null}
 
+      {showHint ? <FeedSwipeHint finePointer={finePointer} /> : null}
+
       {blocked ? (
         <div className="absolute inset-0 z-(--z-modal)">
           <SignupWall returnTo={`/games/${gameId}/watch/${active.id}`} />
@@ -808,6 +873,43 @@ export function VerticalFeed({
         />
       ) : null}
     </div>
+  );
+}
+
+function FeedSwipeHint({ finePointer }: { finePointer: boolean }) {
+  // Keyboard arrows already move the feed, but nothing on screen says so.
+  // Fine pointers get scroll/keys copy; coarse pointers get the swipe line.
+  const copy = finePointer
+    ? "Scroll or use the arrow keys"
+    : "Swipe up for the next clip";
+
+  return (
+    <div
+      className="feed-swipe-hint"
+      data-swipe-hint=""
+      role="status"
+      aria-live="polite"
+    >
+      <span className="feed-swipe-hint-mark" aria-hidden="true">
+        <SwipeHintIcon />
+      </span>
+      <p className="feed-swipe-hint-copy">{copy}</p>
+    </div>
+  );
+}
+
+function SwipeHintIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+      <path
+        d="M7 13.5 12 8.5 17 13.5M7 18 12 13 17 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
