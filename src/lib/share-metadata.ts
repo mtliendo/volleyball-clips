@@ -105,6 +105,22 @@ export function faqPageMetadata(): Metadata {
   });
 }
 
+export function privacyPageMetadata(): Metadata {
+  return pageMetadata({
+    title: "Privacy",
+    description: "What VB POV collects, what it doesn't, and how to delete it.",
+    path: "/privacy",
+  });
+}
+
+export function dataDeletionPageMetadata(): Metadata {
+  return pageMetadata({
+    title: "Data deletion",
+    description: "How to delete your VB POV account, or ask for a clip takedown.",
+    path: "/data-deletion",
+  });
+}
+
 export function rootMetadata(): Metadata {
   return {
     metadataBase: new URL(SITE_URL),
