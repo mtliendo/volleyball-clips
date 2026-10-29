@@ -19,6 +19,7 @@ const baseUrl = (
   process.env.VERIFY_BASE_URL ||
   "http://127.0.0.1:3000"
 ).replace(/\/$/, "");
+const shareToken = argValue("--share-token") || process.env.VERIFY_SHARE_TOKEN || "";
 const shotDir = process.env.VERIFY_SHOT_DIR || "/opt/cursor/artifacts";
 
 const IPHONE_UA =
@@ -27,6 +28,11 @@ const DESKTOP_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 const VIDEO_BODY = Buffer.alloc(64 * 1024, 7);
+
+async function unlockPreview(page: import("playwright").Page) {
+  if (!shareToken) return;
+  await page.goto(`${baseUrl}/?_vercel_share=${shareToken}`, { waitUntil: "domcontentloaded" });
+}
 
 async function fulfillDownload(page: import("playwright").Page, delayMs = 400) {
   await page.route("**/api/clips/*/download**", async (route) => {
@@ -69,6 +75,7 @@ async function verifyIos(browser: import("playwright").Browser) {
   });
 
   const page = await context.newPage();
+  await unlockPreview(page);
   await fulfillDownload(page, 800);
   await page.goto(`${baseUrl}/dev/download-pending`, { waitUntil: "domcontentloaded" });
 
@@ -141,6 +148,7 @@ async function verifyDesktop(browser: import("playwright").Browser) {
     acceptDownloads: true,
   });
   const page = await context.newPage();
+  await unlockPreview(page);
   await fulfillDownload(page, 200);
   await page.goto(`${baseUrl}/dev/download-pending`, { waitUntil: "load" });
 
@@ -180,7 +188,10 @@ async function verifyDesktop(browser: import("playwright").Browser) {
 
 async function main() {
   await mkdir(shotDir, { recursive: true });
-  const probe = await fetch(`${baseUrl}/dev/download-pending`, { redirect: "manual" });
+  const probeUrl = shareToken
+    ? `${baseUrl}/dev/download-pending?_vercel_share=${shareToken}`
+    : `${baseUrl}/dev/download-pending`;
+  const probe = await fetch(probeUrl, { redirect: "manual" });
   if (probe.status >= 400) {
     throw new Error(
       `/dev/download-pending returned ${probe.status}. Use a preview URL or VERIFY_FEED_HARNESS=1`,
