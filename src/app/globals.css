@@ -166,12 +166,15 @@ h3 { max-width: 28ch; }
 }
 
 .download-ctrl.is-preparing,
-.btn.is-preparing {
+.download-ctrl.is-ready-to-save,
+.btn.is-preparing,
+.btn.is-ready-to-save {
   gap: 0.45rem;
   opacity: 1;
 }
 
-.download-ctrl.is-preparing {
+.download-ctrl.is-preparing,
+.download-ctrl.is-ready-to-save {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
