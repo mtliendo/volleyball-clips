@@ -63,10 +63,15 @@ async function clickToAuth0(
     control.click(),
   ]);
 
-  if (page.url().includes("not-found") || (await page.locator("h1").innerText()).includes("Not on the court")) {
+  const dest = new URL(page.url());
+  if (dest.hostname !== AUTH0_HOST) {
+    throw new Error(`${label} ended on ${page.url()}`);
+  }
+  const notFound = page.locator("h1", { hasText: "Not on the court" });
+  if ((await notFound.count()) > 0) {
     throw new Error(`${label} landed on the app 404 page`);
   }
-  console.log(`ok click ${label} -> ${new URL(page.url()).host}`);
+  console.log(`ok click ${label} -> ${dest.host}`);
 }
 
 async function main() {
