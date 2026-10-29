@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { DownloadButton } from "@/components/download-button";
+import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { VERIFY_CLIP_IDS, isVerifyHarnessEnabled, verifyViewer } from "@/lib/verify-feed";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export default async function VerifyDownloadPendingPage() {
       <header className="space-y-2">
         <h1 className="display text-display-s">Download pending</h1>
         <p className="lead">Verify harness for the preparing state.</p>
+        <ShareDebugReadout />
       </header>
 
       <section className="well space-y-4 p-5" data-verify-download-surface="feed">

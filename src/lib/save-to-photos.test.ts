@@ -3,11 +3,14 @@ import { describe, it } from "node:test";
 import { sanitizeDownloadFilename } from "./download";
 import {
   canShareFiles,
+  canSharePreparedFile,
   createShareFile,
   downloadShareFilename,
   downloadShareMimeType,
+  getShareDebugSnapshot,
   isIOSLike,
   isShareAbortError,
+  isShareDebugQuery,
   preparingDownloadLabel,
   progressPercent,
   readResponseBlob,
@@ -102,18 +105,19 @@ describe("canShareFiles", () => {
 });
 
 describe("shouldUsePhotosShare", () => {
-  it("uses the share sheet only on iOS/iPadOS that can share files", () => {
+  it("uses the share sheet on iOS/iPadOS when navigator.share exists", () => {
     assert.equal(
       shouldUsePhotosShare({
         userAgent: IPHONE_UA,
-        canShare: shareFilesOk(),
+        share: async () => {},
       }),
       true,
     );
     assert.equal(
       shouldUsePhotosShare({
         userAgent: IPAD_UA,
-        canShare: shareFilesOk(),
+        share: async () => {},
+        canShare: shareFilesNo(),
       }),
       true,
     );
@@ -122,21 +126,32 @@ describe("shouldUsePhotosShare", () => {
         userAgent: IPADOS_DESKTOP_UA,
         platform: "MacIntel",
         maxTouchPoints: 5,
-        canShare: shareFilesOk(),
+        share: async () => {},
       }),
       true,
     );
   });
 
-  it("falls back to a normal download on iOS without file sharing", () => {
+  it("does not wait for a 1-byte canShare probe on iOS", () => {
     assert.equal(
       shouldUsePhotosShare({
         userAgent: IPHONE_UA,
+        share: async () => {},
         canShare: shareFilesNo(),
+      }),
+      true,
+    );
+  });
+
+  it("falls back to a normal download on iOS without navigator.share", () => {
+    assert.equal(shouldUsePhotosShare({ userAgent: IPHONE_UA }), false);
+    assert.equal(
+      shouldUsePhotosShare({
+        userAgent: IPHONE_UA,
+        canShare: shareFilesOk(),
       }),
       false,
     );
-    assert.equal(shouldUsePhotosShare({ userAgent: IPHONE_UA }), false);
   });
 
   it("never uses the Photos share path on Android or desktop", () => {
@@ -144,6 +159,7 @@ describe("shouldUsePhotosShare", () => {
       shouldUsePhotosShare({
         userAgent: ANDROID_UA,
         maxTouchPoints: 5,
+        share: async () => {},
         canShare: shareFilesOk(),
       }),
       false,
@@ -153,10 +169,47 @@ describe("shouldUsePhotosShare", () => {
         userAgent: DESKTOP_CHROME_UA,
         platform: "MacIntel",
         maxTouchPoints: 0,
+        share: async () => {},
         canShare: shareFilesOk(),
       }),
       false,
     );
+  });
+});
+
+describe("canSharePreparedFile", () => {
+  it("treats a missing canShare as ok so share() can still run", () => {
+    const file = new File(["clip"], "rally.mp4", { type: "video/mp4" });
+    assert.equal(canSharePreparedFile(undefined, file), true);
+  });
+
+  it("uses canShare on the actual prepared file", () => {
+    const file = new File(["clip"], "IMG_1234.mov", { type: "video/quicktime" });
+    assert.equal(canSharePreparedFile((data) => data?.files?.[0] === file, file), true);
+    assert.equal(canSharePreparedFile(shareFilesNo(), file), false);
+  });
+});
+
+describe("getShareDebugSnapshot", () => {
+  it("reports the probe result without using it to pick the mode", () => {
+    const snapshot = getShareDebugSnapshot({
+      userAgent: IPHONE_UA,
+      share: async () => {},
+      canShare: shareFilesNo(),
+    });
+    assert.equal(snapshot.isIOSLike, true);
+    assert.equal(snapshot.share, "function");
+    assert.equal(snapshot.canShare, "false");
+    assert.equal(snapshot.mode, "photos");
+  });
+});
+
+describe("isShareDebugQuery", () => {
+  it("is opt-in on debug=share only", () => {
+    assert.equal(isShareDebugQuery("?debug=share"), true);
+    assert.equal(isShareDebugQuery("debug=share"), true);
+    assert.equal(isShareDebugQuery("?debug=1"), false);
+    assert.equal(isShareDebugQuery(""), false);
   });
 });
 
@@ -166,9 +219,9 @@ describe("downloadShareMimeType", () => {
     assert.equal(downloadShareMimeType("IMG_1234.MOV", "application/octet-stream"), "video/quicktime");
   });
 
-  it("keeps the original mime when it is a real video type", () => {
-    assert.equal(downloadShareMimeType("rally.mp4", "video/mp4"), "video/mp4");
-    assert.equal(downloadShareMimeType("rally.m4v", "video/x-m4v"), "video/x-m4v");
+  it("uses video/mp4 for 1080p names", () => {
+    assert.equal(downloadShareMimeType("rally.mp4", "video/quicktime"), "video/mp4");
+    assert.equal(downloadShareMimeType("rally.mp4"), "video/mp4");
   });
 
   it("defaults to video/mp4 when the header is missing or generic", () => {

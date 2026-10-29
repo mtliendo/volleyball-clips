@@ -7,7 +7,15 @@ export type ShareNavigatorLike = {
   userAgent?: string;
   platform?: string;
   maxTouchPoints?: number;
+  share?: unknown;
   canShare?: (data?: ShareData) => boolean;
+};
+
+export type ShareDebugSnapshot = {
+  isIOSLike: boolean;
+  share: string;
+  canShare: string;
+  mode: "photos" | "file";
 };
 
 function makeTestVideoFile() {
@@ -26,6 +34,10 @@ export function isIOSLike(nav: ShareNavigatorLike) {
   return macintosh && (nav.maxTouchPoints ?? 0) > 1;
 }
 
+export function hasShareFunction(share: unknown) {
+  return typeof share === "function";
+}
+
 export function canShareFiles(canShare?: ShareNavigatorLike["canShare"]) {
   if (typeof File === "undefined" || typeof canShare !== "function") {
     return false;
@@ -38,14 +50,37 @@ export function canShareFiles(canShare?: ShareNavigatorLike["canShare"]) {
   }
 }
 
+export function canSharePreparedFile(
+  canShare: ShareNavigatorLike["canShare"] | undefined,
+  file: File,
+) {
+  if (typeof canShare !== "function") {
+    return true;
+  }
+
+  try {
+    return canShare({ files: [file] }) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Gate the two-tap Photos path on iOS + navigator.share only.
+ * A 1-byte canShare({ files: [File] }) probe is unreliable on real iOS Safari
+ * and was sending users down the attachment-download fallback.
+ */
 export function shouldUsePhotosShare(nav: ShareNavigatorLike) {
-  return isIOSLike(nav) && canShareFiles(nav.canShare);
+  return isIOSLike(nav) && hasShareFunction(nav.share);
 }
 
 export function downloadShareMimeType(filename: string, contentType?: string | null) {
   const ext = filename.split(".").pop()?.toLowerCase();
   if (ext === "mov") {
     return "video/quicktime";
+  }
+  if (ext === "mp4") {
+    return "video/mp4";
   }
 
   const mime = contentType?.split(";")[0]?.trim();
@@ -115,4 +150,28 @@ export function createShareFile(blob: Blob, filename: string, contentType?: stri
   return new File([blob], safeName, {
     type: downloadShareMimeType(safeName, contentType || blob.type),
   });
+}
+
+function describeCanShare(canShare?: ShareNavigatorLike["canShare"]) {
+  if (typeof canShare !== "function") {
+    return "missing";
+  }
+  try {
+    return canShareFiles(canShare) ? "true" : "false";
+  } catch {
+    return "threw";
+  }
+}
+
+export function getShareDebugSnapshot(nav: ShareNavigatorLike): ShareDebugSnapshot {
+  return {
+    isIOSLike: isIOSLike(nav),
+    share: typeof nav.share,
+    canShare: describeCanShare(nav.canShare),
+    mode: shouldUsePhotosShare(nav) ? "photos" : "file",
+  };
+}
+
+export function isShareDebugQuery(search: string) {
+  return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("debug") === "share";
 }

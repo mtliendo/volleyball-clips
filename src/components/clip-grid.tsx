@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DeleteClipButton } from "@/components/admin/delete-clip-button";
-import { DownloadButton } from "@/components/download-button";
+import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
 import { cdnUrl } from "@/lib/cdn";
@@ -36,14 +36,18 @@ export function ClipGrid({
 
   if (clips.length === 0) {
     return (
-      <p className="well px-4 py-10 text-center text-sm text-muted">
-        No ready clips for this session yet.
-      </p>
+      <>
+        <ShareDebugReadout />
+        <p className="well px-4 py-10 text-center text-sm text-muted">
+          No ready clips for this session yet.
+        </p>
+      </>
     );
   }
 
   return (
     <div className="space-y-4">
+      <ShareDebugReadout />
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
         <button
           type="button"

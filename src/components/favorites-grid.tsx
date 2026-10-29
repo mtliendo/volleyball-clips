@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { DownloadButton } from "@/components/download-button";
+import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { cdnUrl } from "@/lib/cdn";
 import { formatGameWhen } from "@/lib/dates";
@@ -28,6 +28,7 @@ export function FavoritesGrid({
 
   return (
     <>
+      <ShareDebugReadout />
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {clips.map((clip) => {
           const poster = cdnUrl(clip.posterKey);

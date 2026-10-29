@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useRef, useState, useSyncExternalStore } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
@@ -8,8 +9,11 @@ import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/li
 import {
   READY_TO_SAVE_STATUS,
   SAVE_TO_PHOTOS_LABEL,
+  canSharePreparedFile,
   createShareFile,
   downloadShareFilename,
+  downloadShareMimeType,
+  getShareDebugSnapshot,
   isShareAbortError,
   preparingDownloadLabel,
   progressPercent,
@@ -31,7 +35,37 @@ function subscribeNoop() {
 }
 
 function usePhotosShare() {
-  return useSyncExternalStore(subscribeNoop, () => shouldUsePhotosShare(navigator), () => false);
+  return useSyncExternalStore(
+    subscribeNoop,
+    () => shouldUsePhotosShare(navigator),
+    () => false,
+  );
+}
+
+function ShareDebugReadoutInner() {
+  const params = useSearchParams();
+  const enabled = params.get("debug") === "share";
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
+
+  if (!enabled || !mounted) {
+    return null;
+  }
+
+  const snapshot = getShareDebugSnapshot(navigator);
+  return (
+    <p className="share-debug" data-share-debug="">
+      iOS {snapshot.isIOSLike ? "yes" : "no"} · share {snapshot.share} · canShare {snapshot.canShare} ·
+      mode {snapshot.mode}
+    </p>
+  );
+}
+
+export function ShareDebugReadout() {
+  return (
+    <Suspense fallback={null}>
+      <ShareDebugReadoutInner />
+    </Suspense>
+  );
 }
 
 function triggerFileDownload(blob: Blob, filename: string) {
@@ -152,6 +186,10 @@ function AuthorizedDownloadButton({
 
     try {
       const file = createShareFile(prepared.blob, prepared.filename, prepared.mimeType);
+      if (!canSharePreparedFile(navigator.canShare?.bind(navigator), file)) {
+        fallbackDownload(prepared);
+        return;
+      }
       await navigator.share({ files: [file] });
     } catch (error) {
       if (isShareAbortError(error)) {
@@ -209,7 +247,10 @@ function AuthorizedDownloadButton({
       const prepared = {
         blob,
         filename,
-        mimeType: blob.type || response.headers.get("content-type") || "video/mp4",
+        mimeType: downloadShareMimeType(
+          filename,
+          blob.type || response.headers.get("content-type"),
+        ),
       };
       preparedRef.current = prepared;
 

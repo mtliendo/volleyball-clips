@@ -34,7 +34,12 @@ async function unlockPreview(page: import("playwright").Page) {
   await page.goto(`${baseUrl}/?_vercel_share=${shareToken}`, { waitUntil: "domcontentloaded" });
 }
 
-async function fulfillDownload(page: import("playwright").Page, delayMs = 400) {
+async function fulfillDownload(
+  page: import("playwright").Page,
+  delayMs = 400,
+  filename = "IMG_1234.mp4",
+  contentType = "video/mp4",
+) {
   await page.route("**/api/clips/*/download**", async (route) => {
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -42,8 +47,8 @@ async function fulfillDownload(page: import("playwright").Page, delayMs = 400) {
     await route.fulfill({
       status: 200,
       headers: {
-        "content-type": "video/mp4",
-        "content-disposition": 'attachment; filename="IMG_1234.mp4"',
+        "content-type": contentType,
+        "content-disposition": `attachment; filename="${filename}"`,
         "content-length": String(VIDEO_BODY.length),
         "x-downloads-remaining": "2",
       },
@@ -66,7 +71,13 @@ async function verifyIos(browser: import("playwright").Browser) {
       writable: true,
       value: calls,
     });
-    navigator.canShare = (data?: ShareData) => Boolean(data?.files && data.files.length > 0);
+    // Real iOS Safari rejects the 1-byte t.mp4 probe. Share still exists.
+    navigator.canShare = (data?: ShareData) => {
+      const file = data?.files?.[0];
+      if (!file) return false;
+      if (file.name === "t.mp4" && file.size <= 1) return false;
+      return true;
+    };
     navigator.share = async (data?: ShareData) => {
       for (const file of data?.files ?? []) {
         calls.push({ name: file.name, type: file.type });
@@ -76,8 +87,18 @@ async function verifyIos(browser: import("playwright").Browser) {
 
   const page = await context.newPage();
   await unlockPreview(page);
-  await fulfillDownload(page, 800);
-  await page.goto(`${baseUrl}/dev/download-pending`, { waitUntil: "domcontentloaded" });
+  await fulfillDownload(page, 800, "video-30201_singular_display.mov", "video/quicktime");
+  await page.goto(`${baseUrl}/dev/download-pending?debug=share`, { waitUntil: "domcontentloaded" });
+
+  const debug = page.locator("[data-share-debug]");
+  await debug.first().waitFor({ state: "visible", timeout: 5000 });
+  const debugText = (await debug.first().innerText()).replace(/\s+/g, " ");
+  if (!debugText.includes("iOS yes") || !debugText.includes("mode photos")) {
+    throw new Error(`debug readout was "${debugText}"`);
+  }
+  if (!debugText.includes("canShare false")) {
+    throw new Error(`debug should show the failing 1-byte canShare probe: "${debugText}"`);
+  }
 
   const button = page.locator('[data-verify-download-surface="feed"] [data-download-control]');
   await button.waitFor({ state: "visible", timeout: 15000 });
@@ -125,10 +146,10 @@ async function verifyIos(browser: import("playwright").Browser) {
   if (shared.length !== 1) {
     throw new Error(`expected one share call, got ${JSON.stringify(shared)}`);
   }
-  if (shared[0]?.name !== "IMG_1234.mp4") {
+  if (shared[0]?.name !== "video-30201_singular_display.mov") {
     throw new Error(`share filename was ${shared[0]?.name}`);
   }
-  if (shared[0]?.type !== "video/mp4") {
+  if (shared[0]?.type !== "video/quicktime") {
     throw new Error(`share mime was ${shared[0]?.type}`);
   }
 
@@ -154,6 +175,9 @@ async function verifyDesktop(browser: import("playwright").Browser) {
 
   const button = page.locator('[data-verify-download-surface="session"] [data-download-control]');
   await button.waitFor({ state: "visible", timeout: 15000 });
+  if ((await page.locator("[data-share-debug]").count()) !== 0) {
+    throw new Error("debug readout must stay hidden without ?debug=share");
+  }
   const mode = await button.getAttribute("data-download-mode");
   if (mode === "photos") {
     throw new Error("desktop UA should not use the Photos share path");
