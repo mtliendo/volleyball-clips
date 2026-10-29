@@ -7,6 +7,9 @@ import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { authLoginHref } from "@/lib/auth-urls";
 import { DOWNLOADS_REMAINING_HEADER, filenameFromContentDisposition } from "@/lib/download";
 
+const PREPARING_LABEL = "Preparing download...";
+const FAILED_LABEL = "Download failed. Try again.";
+
 export function DownloadButton({
   clipId,
   canDownload,
@@ -14,6 +17,7 @@ export function DownloadButton({
   remaining,
   returnTo,
   compact = false,
+  quality,
   nextDownloadAt = null,
   startLimitOpen = false,
   onRemainingChange,
@@ -25,6 +29,7 @@ export function DownloadButton({
   remaining: number | null;
   returnTo: string;
   compact?: boolean;
+  quality?: "original" | "playback";
   nextDownloadAt?: string | null;
   startLimitOpen?: boolean;
   onRemainingChange?: (remaining: number | null) => void;
@@ -36,6 +41,7 @@ export function DownloadButton({
   const [failed, setFailed] = useState(false);
   const [localRemaining, setLocalRemaining] = useState(remaining);
   const left = onRemainingChange ? remaining : localRemaining;
+  const resolvedQuality = quality ?? (isPro ? "original" : "playback");
 
   if (!canDownload) {
     return (
@@ -84,7 +90,11 @@ export function DownloadButton({
 
     setPending(true);
     try {
-      const response = await fetch(`/api/clips/${clipId}/download`);
+      const path =
+        resolvedQuality === "playback"
+          ? `/api/clips/${clipId}/download?quality=playback`
+          : `/api/clips/${clipId}/download`;
+      const response = await fetch(path);
       if (response.status === 402 || response.status === 403) {
         const payload = (await response.json().catch(() => null)) as { nextAt?: string | null } | null;
         showLimit(typeof payload?.nextAt === "string" ? payload.nextAt : null);
@@ -108,7 +118,7 @@ export function DownloadButton({
       const blob = await response.blob();
       const filename =
         filenameFromContentDisposition(response.headers.get("Content-Disposition")) ??
-        (isPro ? "vbpov-original.mp4" : "vbpov-1080p.mp4");
+        (resolvedQuality === "original" ? "vbpov-original.mp4" : "vbpov-1080p.mp4");
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -125,48 +135,66 @@ export function DownloadButton({
     }
   }
 
-  const label = isPro
-    ? "Original"
-    : left === null
-      ? "1080p"
-      : `${left} left`;
+  const idleLabel =
+    resolvedQuality === "original"
+      ? "Original"
+      : left === null
+        ? "1080p"
+        : `${left} left`;
+  const idleAria =
+    resolvedQuality === "original"
+      ? "Download original"
+      : left === null
+        ? "Download 1080p"
+        : `Download 1080p, ${left} left this week`;
+
+  const className = [
+    compact ? "icon-btn download-ctrl" : "btn btn-ghost",
+    pending ? "is-preparing" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
       <button
         type="button"
-        className={compact ? "icon-btn download-ctrl" : "btn btn-ghost"}
+        className={className}
         data-download-control=""
         data-clip-id={clipId}
+        data-download-quality={resolvedQuality}
         data-download-remaining={left === null ? undefined : String(left)}
         data-download-pending={pending ? "true" : undefined}
-        aria-label={
-          isPro
-            ? "Download original"
-            : left === null
-              ? "Download 1080p"
-              : `Download 1080p, ${left} left this week`
-        }
+        aria-label={pending ? PREPARING_LABEL : idleAria}
+        aria-busy={pending}
+        aria-disabled={pending}
         disabled={pending}
         onClick={(event) => {
+          event.preventDefault();
           event.stopPropagation();
           void onDownload();
         }}
       >
-        {compact ? (
+        {pending ? (
+          <>
+            <span className="download-spinner" aria-hidden="true" />
+            <span className="download-preparing-label keep-motion">{PREPARING_LABEL}</span>
+          </>
+        ) : compact ? (
           <>
             <DownloadIcon />
-            <span className="download-ctrl-count">
-              {!isPro && left !== null ? `${left} left` : isPro ? "Original" : "1080p"}
-            </span>
+            <span className="download-ctrl-count">{idleLabel}</span>
           </>
         ) : (
-          `Download ${label}`
+          `Download ${idleLabel}`
         )}
       </button>
+      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {pending ? PREPARING_LABEL : failed ? FAILED_LABEL : ""}
+      </p>
       {failed ? (
         <p className="download-error" role="status">
-          Download failed. Try again.
+          {FAILED_LABEL}
         </p>
       ) : null}
       {limitOpen && !onLimit ? (

@@ -755,7 +755,7 @@ export function VerticalFeed({
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute right-3 bottom-20 z-(--z-raised) flex flex-col items-center gap-3">
+      <div className="pointer-events-none absolute right-3 bottom-20 z-(--z-raised) flex flex-col items-end gap-3">
         {viewer.isAdmin ? (
           <div className="pointer-events-auto">
             <button
