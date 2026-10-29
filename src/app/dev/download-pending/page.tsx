@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { DownloadButton } from "@/components/download-button";
-import { VERIFY_CLIP_IDS, verifyViewer } from "@/lib/verify-feed";
+import { VERIFY_CLIP_IDS, isVerifyHarnessEnabled, verifyViewer } from "@/lib/verify-feed";
 
 export const dynamic = "force-dynamic";
 
 export default async function VerifyDownloadPendingPage() {
   await connection();
-  if (process.env.VERIFY_FEED_HARNESS !== "1") {
+  if (!isVerifyHarnessEnabled()) {
     notFound();
   }
 

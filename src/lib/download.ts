@@ -1,15 +1,34 @@
 export const DOWNLOADS_REMAINING_HEADER = "X-Downloads-Remaining";
 export const VERIFY_DOWNLOADS_COOKIE = "vb_verify_downloads";
 const RECENT_DOWNLOAD_MS = 2 * 60 * 1000;
+const FILENAME_MAX = 120;
 
 export function recentDownloadWindowMs() {
   return RECENT_DOWNLOAD_MS;
 }
 
 export function sanitizeDownloadFilename(name: string) {
-  const trimmed = name.trim() || "clip.mp4";
-  const safe = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 120);
-  return safe.endsWith(".mp4") ? safe : `${safe || "clip"}.mp4`;
+  const trimmed = name.trim() || "clip";
+  const safe = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, FILENAME_MAX);
+  return safe || "clip";
+}
+
+function splitNameAndExt(name: string) {
+  const lastDot = name.lastIndexOf(".");
+  if (lastDot <= 0 || lastDot === name.length - 1) {
+    return { stem: name, ext: "" };
+  }
+  return { stem: name.slice(0, lastDot), ext: name.slice(lastDot + 1) };
+}
+
+function withServedExtension(stem: string, ext: string) {
+  const safeStem = sanitizeDownloadFilename(stem);
+  const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "");
+  if (!safeExt) {
+    return safeStem.slice(0, FILENAME_MAX);
+  }
+  const suffix = `.${safeExt}`;
+  return `${safeStem.slice(0, Math.max(1, FILENAME_MAX - suffix.length))}${suffix}`;
 }
 
 export function downloadFilename(input: {
@@ -17,13 +36,12 @@ export function downloadFilename(input: {
   originalKey: string;
   quality: "playback" | "original";
 }) {
-  if (input.quality === "original") {
-    const raw = input.originalKey.split("/").pop() || "original.mp4";
-    return sanitizeDownloadFilename(raw);
-  }
-
-  const shortId = input.id.replace(/-/g, "").slice(0, 8) || "clip";
-  return `vbpov-1080p-${shortId}.mp4`;
+  const raw = input.originalKey.split("/").pop()?.trim() || "";
+  const { stem, ext } = splitNameAndExt(raw);
+  const fallback = input.id.replace(/-/g, "").slice(0, 8) || "clip";
+  const usedStem = stem || fallback;
+  const servedExt = input.quality === "original" ? ext : "mp4";
+  return withServedExtension(usedStem, servedExt);
 }
 
 export function contentDispositionAttachment(filename: string) {

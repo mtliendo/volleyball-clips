@@ -112,10 +112,56 @@ async function main() {
     throw new Error("Reduced motion should keep the preparing label");
   }
 
+  await page.unroute("**/api/clips/*/download**");
+  await page.route("**/api/stripe/checkout", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
+    await route.abort();
+  });
+  await page.route("**/api/stripe/portal", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ status: 204, body: "" });
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
+    await route.abort();
+  });
+
+  await page.goto(`${baseUrl}/dev/checkout-pending`, { waitUntil: "load" });
+  const checkout = page.locator('[data-verify-billing-surface="checkout"] [data-billing-control]');
+  await checkout.click();
+  const checkoutPending = page.locator('[data-billing-pending="true"]');
+  await checkoutPending.first().waitFor({ state: "visible", timeout: 5000 });
+  const checkoutBusy = await checkoutPending.first().getAttribute("aria-busy");
+  const checkoutDisabled = await checkoutPending.first().isDisabled();
+  const checkoutLabel = await checkoutPending.first().innerText();
+  if (checkoutBusy !== "true") {
+    throw new Error(`checkout aria-busy should be true, got ${checkoutBusy}`);
+  }
+  if (!checkoutDisabled) {
+    throw new Error("Checkout button should be disabled while pending");
+  }
+  if (!checkoutLabel.includes("Opening checkout")) {
+    throw new Error(`Checkout pending label was "${checkoutLabel}"`);
+  }
+  const checkoutLive = page.locator('[aria-live="polite"]').filter({ hasText: "Opening checkout" });
+  if ((await checkoutLive.count()) === 0) {
+    throw new Error("Missing aria-live polite checkout announcement");
+  }
+
+  await page.screenshot({
+    path: `${shotDir}/checkout-pending-mobile.png`,
+    fullPage: true,
+  });
+
   await browser.close();
   console.log(`FAQ title: ${title}`);
   console.log(`Wrote ${shotDir}/faq-mobile.png`);
   console.log(`Wrote ${shotDir}/download-pending-mobile.png`);
+  console.log(`Wrote ${shotDir}/checkout-pending-mobile.png`);
 }
 
 main().catch((error) => {
