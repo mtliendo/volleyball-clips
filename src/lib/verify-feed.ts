@@ -6,6 +6,10 @@ import type { PublicClip } from "./queries";
 
 export { VERIFY_DOWNLOADS_COOKIE };
 
+export function isVerifyHarnessEnabled() {
+  return process.env.VERIFY_FEED_HARNESS === "1" || process.env.VERCEL_ENV === "preview";
+}
+
 export const VERIFY_GAME_ID = "11111111-1111-4111-8111-111111111111";
 export const VERIFY_CLIP_IDS = [
   "22222222-2222-4222-8222-222222222221",

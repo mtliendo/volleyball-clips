@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/admin";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -8,24 +8,52 @@ import { getStripe, stripePriceId } from "@/lib/stripe";
 import { ensureAppUser } from "@/lib/users";
 import { eq } from "drizzle-orm";
 
-export async function POST() {
+export const dynamic = "force-dynamic";
+
+async function loadCheckoutContext() {
   const { session, error } = await requireUserApi();
-  if (error) return error;
+  if (error) return { ok: false as const, error };
   if (!isStripeConfigured()) {
-    return NextResponse.json({ error: "Billing is not configured" }, { status: 503 });
+    return {
+      ok: false as const,
+      error: NextResponse.json({ error: "Billing is not configured" }, { status: 503 }),
+    };
   }
 
   const stripe = getStripe();
   const price = stripePriceId();
   if (!stripe || !price) {
-    return NextResponse.json({ error: "Billing is not configured" }, { status: 503 });
+    return {
+      ok: false as const,
+      error: NextResponse.json({ error: "Billing is not configured" }, { status: 503 }),
+    };
   }
 
   const appUser = await ensureAppUser(session.user);
   if (!appUser) {
-    return NextResponse.json({ error: "Could not save account" }, { status: 503 });
+    return {
+      ok: false as const,
+      error: NextResponse.json({ error: "Could not save account" }, { status: 503 }),
+    };
   }
 
+  return { ok: true as const, stripe, price, appUser };
+}
+
+export async function GET() {
+  const context = await loadCheckoutContext();
+  if (!context.ok) return context.error;
+  return new NextResponse(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+export async function POST() {
+  const context = await loadCheckoutContext();
+  if (!context.ok) return context.error;
+
+  const { stripe, price, appUser } = context;
   if (hasProAccess(appUser)) {
     return NextResponse.json({ error: "Already subscribed" }, { status: 409 });
   }
@@ -51,10 +79,18 @@ export async function POST() {
   });
 
   if (checkout.customer && typeof checkout.customer === "string" && !appUser.stripeCustomerId) {
-    await getDb()
-      .update(users)
-      .set({ stripeCustomerId: checkout.customer, updatedAt: new Date() })
-      .where(eq(users.id, appUser.id));
+    const customerId = checkout.customer;
+    const userId = appUser.id;
+    after(async () => {
+      try {
+        await getDb()
+          .update(users)
+          .set({ stripeCustomerId: customerId, updatedAt: new Date() })
+          .where(eq(users.id, userId));
+      } catch (err) {
+        console.error("checkout customer persist failed", err);
+      }
+    });
   }
 
   if (!checkout.url) {

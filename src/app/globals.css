@@ -185,10 +185,16 @@ h3 { max-width: 28ch; }
 .btn.is-preparing:disabled {
   cursor: not-allowed;
   pointer-events: none;
+  opacity: 1;
 }
 
 .download-ctrl:disabled.is-preparing {
   opacity: 1;
+}
+
+.btn-spark .download-spinner {
+  border-color: color-mix(in oklab, var(--color-spark-ink) 28%, transparent);
+  border-top-color: var(--color-spark-ink);
 }
 
 .download-spinner {
