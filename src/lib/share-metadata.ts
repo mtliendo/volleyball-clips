@@ -97,6 +97,14 @@ function pageMetadata(input: {
   };
 }
 
+export function faqPageMetadata(): Metadata {
+  return pageMetadata({
+    title: "FAQ",
+    description: "Takedowns, what's free, Pro, and how clips get picked.",
+    path: "/faq",
+  });
+}
+
 export function rootMetadata(): Metadata {
   return {
     metadataBase: new URL(SITE_URL),

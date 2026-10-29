@@ -19,6 +19,9 @@ export function SiteFooter() {
           <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="text-muted hover:text-ink">
             Pricing
           </TrackLink>
+          <Link href="/faq" className="text-muted hover:text-ink">
+            FAQ
+          </Link>
           <Link href="/favorites" className="text-muted hover:text-ink">
             Favorites
           </Link>

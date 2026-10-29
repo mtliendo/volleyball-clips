@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CheckoutButton, PortalButton } from "@/components/billing-buttons";
 import { TrackAnchor } from "@/components/track-click";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
@@ -110,6 +111,14 @@ export default async function PricingPage({
       {viewer.canDownload && viewer.downloadsRemaining !== null ? (
         <p className="meta">{viewer.downloadsRemaining} free downloads left this week</p>
       ) : null}
+
+      <p className="meta">
+        Questions about limits, takedowns, or canceling?{" "}
+        <Link href="/faq" className="text-ink underline underline-offset-4">
+          Read the FAQ
+        </Link>
+        .
+      </p>
     </div>
   );
 }
