@@ -30,6 +30,8 @@ export async function SiteHeader() {
                   Admin
                 </Link>
               ) : null}
+              {/* Auth0 logout is a route handler, not an App Router page. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a href="/auth/logout" className="text-muted hover:text-ink">
                 Sign out
               </a>

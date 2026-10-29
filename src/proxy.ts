@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { handleAuthLogin } from "@/lib/auth-handlers";
 import { auth0 } from "@/lib/auth0";
 import { isAuth0Configured } from "@/lib/env";
 import { isAdmin } from "@/lib/roles";
@@ -8,8 +9,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const authRes = await auth0.middleware(request);
   const { pathname } = request.nextUrl;
+
+  // Always start Universal Login here. The SDK middleware returns 204 for
+  // prefetch/HEAD, which Next.js then renders as the app 404 page.
+  if (pathname === "/auth/login") {
+    return handleAuthLogin(request);
+  }
+
+  const authRes = await auth0.middleware(request);
 
   if (pathname.startsWith("/auth") || pathname.startsWith("/api/webhooks")) {
     return authRes;

@@ -1,9 +1,8 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
+import { AuthLoginAnchor } from "@/components/auth-login-anchor";
 import { ANALYTICS_EVENTS } from "@/lib/analytics";
-import { authLoginHref } from "@/lib/auth-urls";
-import { TrackAnchor } from "@/components/track-click";
 
 export function GuestAuthNav() {
   const pathname = usePathname();
@@ -13,20 +12,21 @@ export function GuestAuthNav() {
 
   return (
     <>
-      <TrackAnchor
-        href={authLoginHref({ returnTo })}
+      <AuthLoginAnchor
+        returnTo={returnTo}
         event={ANALYTICS_EVENTS.signInClick}
         className="text-muted hover:text-ink"
       >
         Sign in
-      </TrackAnchor>
-      <TrackAnchor
-        href={authLoginHref({ returnTo, signup: true })}
+      </AuthLoginAnchor>
+      <AuthLoginAnchor
+        returnTo={returnTo}
+        signup
         event={ANALYTICS_EVENTS.signupClick}
         className="btn btn-primary !min-h-9 !px-3"
       >
         Create account
-      </TrackAnchor>
+      </AuthLoginAnchor>
     </>
   );
 }
