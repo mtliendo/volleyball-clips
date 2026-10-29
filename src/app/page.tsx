@@ -1,12 +1,20 @@
 import { TZDate } from "@date-fns/tz";
 import Link from "next/link";
 import { connection } from "next/server";
+import { Suspense } from "react";
 import { TrackLink } from "@/components/track-click";
 import { GameList } from "@/components/game-list";
 import { MonthCalendar } from "@/components/month-calendar";
+import { NightScroll } from "@/components/night-scroll";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { cdnUrl } from "@/lib/cdn";
-import { APP_TIMEZONE, dayKey, formatGameDay, parseYearMonth } from "@/lib/dates";
+import {
+  APP_TIMEZONE,
+  dayKey,
+  formatGameDay,
+  latestSessionDay,
+  parseYearMonth,
+} from "@/lib/dates";
 import { listMonthGames, listRecentReadyPosters } from "@/lib/queries";
 
 const TAPE = ["open gym", "league", "tournament", "spike", "dig", "rally"];
@@ -17,7 +25,8 @@ export default async function HomePage({
   searchParams: Promise<{ ym?: string; d?: string }>;
 }) {
   const { ym, d } = await searchParams;
-  if (!ym) {
+  const explicitDay = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
+  if (!ym || !explicitDay) {
     await connection();
   }
   const yearMonth = parseYearMonth(ym);
@@ -25,13 +34,17 @@ export default async function HomePage({
     listMonthGames(yearMonth),
     listRecentReadyPosters(6),
   ]);
-  const selectedDay = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
+  const sessionDays = [...new Set(games.map((game) => dayKey(game.startsAt)))];
+  const selectedDay = explicitDay ?? latestSessionDay(sessionDays);
   const dayGames = selectedDay
     ? games.filter((game) => dayKey(game.startsAt) === selectedDay)
     : [];
 
   return (
     <>
+      <Suspense fallback={null}>
+        <NightScroll selectedDay={selectedDay} sessionDays={sessionDays} />
+      </Suspense>
       <section className="hero-court">
         {posters.length > 0 ? (
           <ul className="hero-stack">
@@ -77,15 +90,19 @@ export default async function HomePage({
         </div>
       </div>
 
-      <div id="nights" className="container space-y-6 pt-10">
+      <div className="container space-y-6 pt-10 pb-[calc(var(--space-2xl)+env(safe-area-inset-bottom,0px))]">
         <MonthCalendar
           yearMonth={yearMonth}
           selectedDay={selectedDay}
           games={games.map((game) => ({ id: game.id, day: dayKey(game.startsAt) }))}
         />
         {selectedDay ? (
-          <section className="space-y-3">
-            <h2 className="display text-section">
+          <section className="max-md:min-h-[calc(100svh-5.5rem)] space-y-3">
+            <h2
+              id="night-sessions"
+              tabIndex={-1}
+              className="display text-section"
+            >
               {formatGameDay(
                 new TZDate(
                   Number(selectedDay.slice(0, 4)),

@@ -29,7 +29,7 @@ export function MonthCalendar({
   const daysWithGames = new Set(games.map((game) => game.day));
 
   return (
-    <section className="well p-4">
+    <section id="nights" className="well p-4">
       <div className="mb-4 flex items-center justify-between">
         <Link
           href={`/?ym=${prev}`}
@@ -64,25 +64,30 @@ export function MonthCalendar({
           return (
             <Link
               key={key}
-              href={`/?ym=${ym}&d=${key}`}
+              href={hasGames ? `/?ym=${ym}&d=${key}#night-sessions` : `/?ym=${ym}&d=${key}`}
+              scroll={false}
+              data-night-day={key}
+              aria-current={selected ? "date" : undefined}
+              aria-label={hasGames ? `${date.getDate()}, sessions` : undefined}
               className={`flex min-h-11 min-w-0 flex-col items-center justify-center rounded-card text-sm ${
                 selected
                   ? "bg-accent text-accent-ink"
-                  : inMonth
-                    ? "bg-paper-3 text-ink"
-                    : "text-muted/60"
+                  : hasGames
+                    ? inMonth
+                      ? "bg-paper-3 text-ink ring-1 ring-spark/80"
+                      : "bg-paper-3/70 text-muted ring-1 ring-spark/40"
+                    : inMonth
+                      ? "text-muted"
+                      : "text-muted/40"
               }`}
             >
               <span>{date.getDate()}</span>
-              {hasGames ? (
-                <span
-                  className={`mt-0.5 h-0.5 w-4 rounded-pill ${
-                    selected ? "bg-accent-ink" : "bg-spark"
-                  }`}
-                />
-              ) : (
-                <span className="mt-0.5 h-0.5 w-4" />
-              )}
+              <span
+                className={`mt-0.5 h-1.5 w-1.5 rounded-pill ${
+                  hasGames ? (selected ? "bg-accent-ink" : "bg-spark") : "invisible"
+                }`}
+                aria-hidden
+              />
             </Link>
           );
         })}
