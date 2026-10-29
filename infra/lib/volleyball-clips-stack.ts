@@ -70,7 +70,8 @@ export class VolleyballClipsStack extends cdk.Stack {
       this.node.tryGetContext("vercelProjectName") ?? "volleyball-clips",
     );
     const allowedOrigins = String(
-      this.node.tryGetContext("allowedOrigins") ?? "http://localhost:3000",
+      this.node.tryGetContext("allowedOrigins") ??
+        "http://localhost:3000,https://vbpov.com,https://www.vbpov.com",
     )
       .split(",")
       .map((origin) => origin.trim())
