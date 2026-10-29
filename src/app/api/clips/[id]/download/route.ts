@@ -168,6 +168,9 @@ export async function GET(
     }
   }
 
+  // Stream through this same-origin route. The browser never fetch()es the
+  // signed CloudFront URL, so CDN CORS is not required for downloads or the
+  // iOS Save to Photos blob path.
   const upstream = await fetch(url);
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json({ error: "Download is not available yet" }, { status: 409 });
