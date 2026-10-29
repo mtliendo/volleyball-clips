@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { FaqItem } from "@/components/faq-item";
 import { ANON_WATCH_LIMIT, FREE_DOWNLOADS_PER_WEEK } from "@/lib/db/schema";
 import { faqPageMetadata } from "@/lib/share-metadata";
 
@@ -93,20 +93,5 @@ export default function FaqPage() {
         </FaqItem>
       </div>
     </div>
-  );
-}
-
-function FaqItem({
-  question,
-  children,
-}: {
-  question: string;
-  children: ReactNode;
-}) {
-  return (
-    <details className="faq-item">
-      <summary>{question}</summary>
-      <div className="faq-answer">{children}</div>
-    </details>
   );
 }

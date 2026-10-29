@@ -25,6 +25,12 @@ export function SiteFooter() {
           <Link href="/favorites" className="text-muted hover:text-ink">
             Favorites
           </Link>
+          <Link href="/privacy" className="text-muted hover:text-ink">
+            Privacy
+          </Link>
+          <Link href="/data-deletion" className="text-muted hover:text-ink">
+            Data deletion
+          </Link>
         </nav>
       </div>
     </footer>
