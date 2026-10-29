@@ -35,7 +35,7 @@ export default async function PricingPage({
   return (
     <div className="container space-y-10 py-10">
       <header className="space-y-3">
-        <h1 className="display text-display">Seven clips a day, or five bucks.</h1>
+        <h1 className="display text-display">Watch free. Keep the good ones.</h1>
         <p className="lead">
           Watch for free. Pay if you want the original files from the glasses.
         </p>
