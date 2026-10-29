@@ -389,6 +389,15 @@ h3 { max-width: 28ch; }
   to { transform: translateX(-50%); }
 }
 
+#nights,
+#night-sessions {
+  scroll-margin-top: calc(3.5rem + env(safe-area-inset-top, 0px) + var(--space-sm));
+}
+
+#night-sessions:focus {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tape-track {
     animation: none;

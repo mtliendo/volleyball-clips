@@ -16,13 +16,17 @@ export function GameList({
     );
   }
 
+  const single = games.length === 1;
+
   return (
     <ul className="grid gap-3">
       {games.map((game) => (
         <li key={game.id}>
           <Link
             href={`/games/${game.id}`}
-            className="well block p-4 transition-colors duration-(--dur-micro) ease-out hover:bg-paper-3"
+            className={`well block p-4 transition-colors duration-(--dur-micro) ease-out hover:bg-paper-3 ${
+              single ? "ring-1 ring-accent" : ""
+            }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -31,9 +35,14 @@ export function GameList({
               </div>
               <span className="chip shrink-0">{GAME_TYPE_LABELS[game.type]}</span>
             </div>
-            <p className="meta mt-3">
-              {game.readyClipCount} {game.readyClipCount === 1 ? "clip" : "clips"}
-            </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="meta">
+                {game.readyClipCount} {game.readyClipCount === 1 ? "clip" : "clips"}
+              </p>
+              {single ? (
+                <span className="text-sm font-medium text-accent">Open session</span>
+              ) : null}
+            </div>
           </Link>
         </li>
       ))}

@@ -32,6 +32,15 @@ export function dayKey(date: Date) {
   return format(new TZDate(date, APP_TIMEZONE), "yyyy-MM-dd");
 }
 
+export function latestSessionDay(days: string[], today = dayKey(nowInAppZone())) {
+  const unique = [...new Set(days)].sort();
+  if (unique.length === 0) {
+    return undefined;
+  }
+
+  return unique.filter((day) => day <= today).at(-1) ?? unique.at(-1);
+}
+
 export function monthRange(yearMonth: Date) {
   const start = startOfMonth(yearMonth);
   const end = endOfMonth(yearMonth);
