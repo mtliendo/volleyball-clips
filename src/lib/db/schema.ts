@@ -263,6 +263,8 @@ export const PIN_LABELS = [
 
 export const MAX_PINS_PER_SESSION = 3;
 export const ANON_WATCH_LIMIT = 7;
+// Shared connections (gym wifi, a family, incognito on the same network) get more headroom.
+export const ANON_IP_WATCH_LIMIT = 25;
 export const FREE_DOWNLOADS_PER_WEEK = 3;
 export const PRO_MONTHLY_PRICE_USD = 5;
 

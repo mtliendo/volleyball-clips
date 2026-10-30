@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, count, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import {
+  ANON_IP_WATCH_LIMIT,
   ANON_WATCH_LIMIT,
   FREE_DOWNLOADS_PER_WEEK,
   downloadEvents,
@@ -133,7 +134,10 @@ export async function recordWatch(input: {
 }
 
 export function remainingFromCounts(visitorCount: number, ipCount: number) {
-  return Math.max(0, ANON_WATCH_LIMIT - Math.max(visitorCount, ipCount));
+  return Math.max(
+    0,
+    Math.min(ANON_WATCH_LIMIT - visitorCount, ANON_IP_WATCH_LIMIT - ipCount),
+  );
 }
 
-export { ANON_WATCH_LIMIT, FREE_DOWNLOADS_PER_WEEK };
+export { ANON_IP_WATCH_LIMIT, ANON_WATCH_LIMIT, FREE_DOWNLOADS_PER_WEEK };
