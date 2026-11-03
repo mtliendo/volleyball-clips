@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipTagEditor } from "@/components/admin/clip-tag-editor";
 import { ClipUploader } from "@/components/admin/clip-uploader";
 import { DeleteGameButton } from "@/components/admin/delete-game-button";
 import { PinEditor } from "@/components/admin/pin-editor";
 import { requireAdminPage } from "@/lib/admin";
 import { formatGameWhen } from "@/lib/dates";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
-import { getGameWithVenue, listGameClips, listTags } from "@/lib/queries";
+import { getGameWithVenue, listGameClips } from "@/lib/queries";
 
 export default async function AdminGamePage({
   params,
@@ -21,7 +20,7 @@ export default async function AdminGamePage({
     notFound();
   }
 
-  const [clips, tags] = await Promise.all([listGameClips(id), listTags()]);
+  const clips = await listGameClips(id);
 
   return (
     <div className="space-y-5">
@@ -40,10 +39,24 @@ export default async function AdminGamePage({
       </div>
       <ClipUploader gameId={id} />
       <PinEditor gameId={id} clips={clips} />
-      <section className="space-y-3">
-        <h2 className="display text-2xl">Tags</h2>
-        <ClipTagEditor clips={clips} tags={tags} />
-      </section>
+      {clips.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="display text-2xl">Clips</h2>
+          <p className="meta">Open a clip to edit its tags or delete it. AI tags apply after playback is ready.</p>
+          <ul className="space-y-2">
+            {clips.map((clip) => (
+              <li key={clip.id}>
+                <Link href={`/admin/games/${id}/clips/${clip.id}`} className="well flex items-center justify-between gap-3 p-3">
+                  <span className="truncate text-sm">
+                    {clip.tags.map((tag) => tag.name).join(", ") || "No tags yet"}
+                  </span>
+                  <span className="meta shrink-0">Edit</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

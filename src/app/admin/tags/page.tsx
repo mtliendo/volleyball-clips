@@ -10,7 +10,7 @@ export default async function AdminTagsPage() {
     <div className="space-y-4">
       <h1 className="display text-section">Tags</h1>
       <p className="meta">
-        Seeded list: spike, block, dig, ace, set, save, rally. Add more if the footage needs it.
+        Seeded list: ace, serve, dig, set, spike, block, rally, save, funny. Add more if the footage needs it.
       </p>
       <TagManager tags={tags} />
     </div>

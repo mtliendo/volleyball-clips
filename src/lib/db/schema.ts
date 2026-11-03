@@ -1,11 +1,14 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   date,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   uniqueIndex,
@@ -36,6 +39,12 @@ export const downloadQualityEnum = pgEnum("download_quality", [
   "original",
 ]);
 
+export const clipAiStatusEnum = pgEnum("clip_ai_status", [
+  "pending",
+  "done",
+  "failed",
+]);
+
 export const venues = pgTable("venues", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -60,10 +69,40 @@ export const clips = pgTable("clips", {
   posterKey: text("poster_key"),
   durationMs: integer("duration_ms"),
   status: clipStatusEnum("status").notNull().default("uploading"),
+  tagsLocked: boolean("tags_locked").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+export const clipAiTags = pgTable(
+  "clip_ai_tags",
+  {
+    clipId: uuid("clip_id")
+      .primaryKey()
+      .references(() => clips.id, { onDelete: "cascade" }),
+    status: clipAiStatusEnum("status").notNull().default("pending"),
+    summary: text("summary"),
+    actions: jsonb("actions").$type<
+      { type: string; start_s: number; who: string; outcome: string }[]
+    >(),
+    rallyCount: integer("rally_count"),
+    longestRallyS: real("longest_rally_s"),
+    highlightScore: integer("highlight_score"),
+    tags: jsonb("tags").$type<string[]>(),
+    mappedTagSlugs: jsonb("mapped_tag_slugs").$type<string[]>(),
+    model: text("model"),
+    error: text("error"),
+    taggedAt: timestamp("tagged_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("clip_ai_tags_status").on(table.status)],
+);
 
 export const tags = pgTable("tags", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -198,8 +237,19 @@ export const clipsRelations = relations(clips, ({ one, many }) => ({
     references: [games.id],
   }),
   clipTags: many(clipTags),
+  aiTag: one(clipAiTags, {
+    fields: [clips.id],
+    references: [clipAiTags.clipId],
+  }),
   pins: many(sessionPins),
   favorites: many(favorites),
+}));
+
+export const clipAiTagsRelations = relations(clipAiTags, ({ one }) => ({
+  clip: one(clips, {
+    fields: [clipAiTags.clipId],
+    references: [clips.id],
+  }),
 }));
 
 export const tagsRelations = relations(tags, ({ many }) => ({
@@ -253,6 +303,7 @@ export const SEED_TAGS = [
   { slug: "block", name: "Block" },
   { slug: "rally", name: "Rally" },
   { slug: "save", name: "Save" },
+  { slug: "funny", name: "Funny" },
 ] as const;
 
 export const PIN_LABELS = [
@@ -270,5 +321,6 @@ export const PRO_MONTHLY_PRICE_USD = 5;
 
 export type GameType = (typeof gameTypeEnum.enumValues)[number];
 export type ClipStatus = (typeof clipStatusEnum.enumValues)[number];
+export type ClipAiStatus = (typeof clipAiStatusEnum.enumValues)[number];
 export type PinLabel = (typeof pinLabelEnum.enumValues)[number];
 export type DownloadQuality = (typeof downloadQualityEnum.enumValues)[number];

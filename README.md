@@ -6,7 +6,8 @@ Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). P
 
 - **Nights:** month calendar (`?ym=YYYY-MM&d=YYYY-MM-DD`) lists that day’s sessions (venue, time, type: open gym, league, tournament).
 - **Session grid:** every ready clip, pins first. Optional pin labels: Longest rally, Best dig, Super spike. Each label at most once per session, max 3 pins.
-- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. One persistent player element stays mounted and keeps that unlock across swipes (iOS Safari treats unmuted play as per-element). The sound icon follows `video.muted`. Neighbors preload muted. Admins can set the session pin and play-type tags from a sheet on this screen. Close returns to the grid.
+- **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. One persistent player element stays mounted and keeps that unlock across swipes (iOS Safari treats unmuted play as per-element). The sound icon follows `video.muted`. Neighbors preload muted. Admins can set the session pin from a sheet on this screen, and open a clip’s edit page for tags. Close returns to the grid.
+- **AI tags:** after the 1080p playback copy is ready, a Lambda sends the clip to Gemini 3.8 Flash and writes play-type tags (spike, set, block, rally, and the rest of the catalog) plus a short summary. Manual tag edits on the per-clip admin page win; later AI runs do not overwrite them. Filter chips on the session grid use the same tags, whether they came from AI or an admin.
 - **Accounts:** public Auth0 sign-up (Google + email/password). `users` is keyed by Auth0 `sub`.
 - **Favorites:** heart on the grid and in the feed. `/favorites` lists them.
 - **Watch limit:** anonymous visitors get **7 unique clips per day** (pins count). Tracked server-side with an HttpOnly `vb_vid` cookie plus a hashed IP backstop. Already-watched clips replay. Signed-in users and admins are not limited.
@@ -44,7 +45,7 @@ Tokens live in `src/app/tokens.css`. Display is Tektur, body is Onest. Paper is 
 ```
 phone / laptop
    │
-   ├─ public Next.js pages ── Neon (venues, games/sessions, clips, tags, pins, users, favorites, watch/download events)
+   ├─ public Next.js pages ── Neon (venues, games/sessions, clips, tags, clip_ai_tags, pins, users, favorites, watch/download events)
    │
    ├─ Auth0 (public sign-up) ── users.auth0_sub
    │     admin role via https://vbpov.com/roles
@@ -65,6 +66,7 @@ phone / laptop
                                     ├─ Lambda + ffmpeg layer
                                     │     writes playback/ and posters/
                                     │     POST /api/webhooks/transcode (HMAC)
+                                    │     then SQS → AI tag Lambda (Gemini) → clip_ai_tags + clip_tags
                                     │
                                     └─ CloudFront (OAC)
                                           posters/* public (Open Graph cards)
@@ -77,7 +79,7 @@ phone / laptop
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind v4, pnpm.
 - **DB:** Neon Postgres, Drizzle schema in `src/lib/db/schema.ts`.
 - **Auth:** `@auth0/nextjs-auth0` v4. Public sign-ups are enabled. Admin access is the Auth0 `admin` role, delivered on the session as `user["https://vbpov.com/roles"]` (see Auth0 below).
-- **AWS (us-east-2, tag `project=volleyball-clips`):** private S3 bucket, CloudFront with origin access control, transcode Lambda, IAM role for Vercel OIDC.
+- **AWS (us-east-2, tag `project=volleyball-clips`):** private S3 bucket, CloudFront with origin access control, transcode Lambda, AI tag SQS queue + DLQ + Lambda, IAM role for Vercel OIDC.
 
 S3 keys:
 
@@ -116,7 +118,7 @@ Intelligent-Tiering Frequent/Infrequent Access stays instantly readable. The sta
 Only a session whose `https://vbpov.com/roles` claim includes `admin` is authorized (`isAdmin` in `src/lib/roles.ts`, used by `requireAdminApi` / `requireAdminPage` and `src/proxy.ts`). Signed-out visitors are sent to login. Signed-in non-admins get `403` on `/api/admin/*` and the `/not-authorized` page for `/admin`. The transcode webhook is unchanged (HMAC, not Auth0).
 
 - **Edit a game** on `/games/[id]` (admin panel) or `/admin/games/[id]/edit`: venue from the saved list, date/time, and type. `PATCH /api/admin/games/:id`.
-- **Delete a clip** on the public game feed (admin) or the admin tag editor: confirm dialog, then `DELETE /api/admin/clips/:id`.
+- **Edit a clip** on `/admin/games/[id]/clips/[clipId]` (from the session grid, the feed pin sheet, or the admin session page): add or remove tags, read the AI summary, delete the clip. Saving tags sets `tags_locked` so a later AI run cannot overwrite them. `PUT /api/admin/clips/:id/tags`, `DELETE /api/admin/clips/:id`.
 - **Delete a game and all its clips** on the public game page or admin game page: confirm dialog, then `DELETE /api/admin/games/:id`.
 
 ## Auth model
@@ -172,6 +174,8 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `APP_TIMEZONE` | Optional. Defaults to `America/Chicago` |
 | `ANON_HASH_SECRET` | Optional HMAC key for the watch IP backstop. Falls back to `AUTH0_SECRET` |
 | `TRANSCODE_WEBHOOK_SECRET` | Decrypted SSM `/volleyball-clips/transcode-webhook-secret` |
+| `AI_TAG_QUEUE_URL` | Optional. Only for `pnpm ai-tags:enqueue` on your machine |
+| `GEMINI_API_KEY` | Optional. Only for `pnpm ai-tags:dry-run -- --live`. Never set on Vercel |
 | `CLOUDFRONT_PRIVATE_KEY` | Matching private key for `CLOUDFRONT_KEY_PAIR_ID`. PEM (newlines or `\n`) or base64. Never commit it |
 | `STRIPE_SECRET_KEY` | Stripe **test** secret (`sk_test_…`). Optional; app degrades without it |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret. Optional |
@@ -188,6 +192,11 @@ Schema changes: edit `src/lib/db/schema.ts`, `pnpm db:generate`, commit `drizzle
 | `NEXT_PUBLIC_CDN_URL` | `https://<cloudfront-domain>` for playback and posters |
 | `CLOUDFRONT_KEY_PAIR_ID` | CloudFront public key id (trusted key group). Required before locking `uploads/*` or `playback/*` |
 | `TRANSCODE_WEBHOOK_SECRET_PARAMETER` | Name of the SSM SecureString |
+| `AI_TAG_QUEUE_URL` | SQS queue the transcode Lambda and backfill script send to |
+| `AI_TAG_DLQ_URL` | Dead-letter queue after 3 failed receives |
+| `AI_TAG_FUNCTION_NAME` | Tagging Lambda name |
+| `GEMINI_API_KEY_PARAMETER` | SSM name `/volleyball-clips/gemini-api-key` |
+| `DATABASE_URL_PARAMETER` | SSM name `/volleyball-clips/database-url` |
 
 Set `CLOUDFRONT_PRIVATE_KEY` yourself (PEM with real newlines or `\n`, or base64 of the PEM). Never put it in the repo or in CDK context. The app works without these vars while those prefixes are still public; after a CDK lock, unsigned objects 403 until the vars are set.
 
@@ -296,6 +305,104 @@ aws ssm put-parameter \
 
 The stack output `TRANSCODE_WEBHOOK_SECRET_PARAMETER` is that name. Do not put the decrypted secret in CloudFormation.
 
+## AI tagging
+
+When a clip’s 1080p playback copy is ready, the transcode Lambda sends `{ clipId, playbackKey }` to an SQS queue. A second Lambda (reserved concurrency 2, batch size 1) downloads that playback file from S3, uploads it to the Gemini File API (`media_resolution` low, JSON schema), writes `clip_ai_tags`, maps the result onto the existing tag catalog, and deletes the Gemini file. After 3 receives, the message goes to a dead-letter queue. Re-tagging a clip overwrites its AI row. It does **not** change `clip_tags` if an admin has edited that clip (`clips.tags_locked`).
+
+Gemini model: `gemini-3.8-flash`. Prompt and schema live in `src/lib/ai-tags.ts`.
+
+### What you need to set (once)
+
+Create two SSM SecureStrings in `us-east-2`. CloudFormation cannot store the values.
+
+```bash
+# Gemini API key
+aws ssm put-parameter \
+  --name /volleyball-clips/gemini-api-key \
+  --description "Gemini API key for volleyball-clips AI tagging" \
+  --type SecureString \
+  --value "$GEMINI_API_KEY" \
+  --region us-east-2
+
+# Neon pooled URL the tagging Lambda uses (same DATABASE_URL as the app)
+aws ssm put-parameter \
+  --name /volleyball-clips/database-url \
+  --description "Neon pooled DATABASE_URL for volleyball-clips AI tagging Lambda" \
+  --type SecureString \
+  --value "$DATABASE_URL" \
+  --region us-east-2
+```
+
+IAM (the CDK stack grants these; you do not add them by hand):
+
+| Principal | Permission |
+| --- | --- |
+| Transcode Lambda | `sqs:SendMessage` on the AI tag queue |
+| AI tag Lambda | `s3:GetObject` on `playback/*`; `ssm:GetParameter` on `/volleyball-clips/gemini-api-key` and `/volleyball-clips/database-url`; SQS consume on the tag queue |
+| Your deploy/backfill user | existing CDK deploy rights, plus `sqs:SendMessage` on the tag queue to run the backfill |
+
+Do **not** put `GEMINI_API_KEY` or the database URL on Vercel. The Next.js app only reads `clip_ai_tags`.
+
+Apply the Drizzle migration (`clip_ai_tags` + `clips.tags_locked`) yourself when you are ready. Clips that already have manual tags are locked so the first AI run cannot replace them:
+
+```bash
+pnpm db:migrate   # DATABASE_URL_UNPOOLED, production only from your machine
+pnpm db:seed      # adds the funny tag if it is missing
+```
+
+### Deploy the queue, DLQ, and tagging Lambda
+
+Do not deploy from a coding agent. From a machine with AWS credentials, after the two SSM parameters exist:
+
+```bash
+cd infra
+pnpm install
+./scripts/prepare-ffmpeg-layer.sh
+./scripts/prepare-lambda-deps.sh
+npx cdk deploy \
+  -c webhookUrl=https://<app-host>/api/webhooks/transcode \
+  -c allowedOrigins=http://localhost:3000,https://<app-host> \
+  -c cloudfrontPublicKeyPath=./keys/cloudfront-public.pem \
+  -c lockUploads=true \
+  -c lockPlayback=false
+```
+
+Or `cd infra && pnpm deploy` (same ffmpeg + lambda-deps prepare, then `cdk deploy --all`). You still need the CloudFront public-key context flags.
+
+New stack outputs: `AI_TAG_QUEUE_URL`, `AI_TAG_DLQ_URL`, `AI_TAG_FUNCTION_NAME`, `GEMINI_API_KEY_PARAMETER`, `DATABASE_URL_PARAMETER`.
+
+Copy `AI_TAG_QUEUE_URL` into the environment of the machine that will run the backfill (`.env.local` is fine). The transcode Lambda receives the queue URL from the stack; you do not set it on Vercel.
+
+### Backfill existing ready clips
+
+About 195 clips already have playback copies and no AI row. After CDK deploy + the migration:
+
+```bash
+# See what would be queued (no AWS send)
+pnpm ai-tags:enqueue -- --dry-run
+
+# Enqueue ready clips that have no clip_ai_tags row
+pnpm ai-tags:enqueue
+
+# Also re-queue failed rows, and pending rows stuck for 15+ minutes
+pnpm ai-tags:enqueue -- --retry-failed --retry-stuck
+```
+
+Needs `DATABASE_URL` or `DATABASE_URL_UNPOOLED`, `AI_TAG_QUEUE_URL`, and AWS credentials that can `sqs:SendMessage` (same profile you use for `cdk deploy`).
+
+Watch the queue and DLQ in the AWS console. The tagging Lambda logs are on `/aws/lambda/<AI_TAG_FUNCTION_NAME>`.
+
+### Local dry-run (mocked Gemini)
+
+```bash
+# Any file works; the mock does not inspect the bytes
+pnpm ai-tags:dry-run -- --file ./README.md
+```
+
+`--locked` checks that catalog tags are left alone. `--live` calls real Gemini and needs `GEMINI_API_KEY` locally. Do not commit that key.
+
+Unit tests for mapping + the mocked pipeline: `pnpm test`.
+
 ## Vercel
 
 - Framework: Next.js. Install `pnpm install`, build `pnpm build`.
@@ -340,6 +447,6 @@ Share previews: `metadataBase` is `https://vbpov.com`. Session and clip pages ex
 
 ## Admin upload notes
 
-On a phone, the admin session page’s file input opens the camera roll (`accept="video/*"`, `multiple`). Files upload in parallel (3 at a time). Tag and pin clips on the same page.
+On a phone, the admin session page’s file input opens the camera roll (`accept="video/*"`, `multiple`). Files upload in parallel (3 at a time). Pin clips on the same page. Edit tags (and delete) on each clip’s page. AI tags land after playback is ready.
 
 Public visitors only see clips in `ready`.

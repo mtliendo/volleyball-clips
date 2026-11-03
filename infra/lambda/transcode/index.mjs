@@ -6,11 +6,13 @@ import { mkdir, rm, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 const execFileAsync = promisify(execFile);
 const s3 = new S3Client({});
 const ssm = new SSMClient({});
+const sqs = new SQSClient({});
 let cachedWebhookSecret;
 
 function sign(body, secret) {
@@ -37,6 +39,21 @@ async function getWebhookSecret() {
 
   cachedWebhookSecret = value;
   return cachedWebhookSecret;
+}
+
+async function enqueueAiTag({ clipId, playbackKey }) {
+  const queueUrl = process.env.AI_TAG_QUEUE_URL;
+  if (!queueUrl) {
+    console.warn("AI_TAG_QUEUE_URL is not set; skip AI tag enqueue");
+    return;
+  }
+
+  await sqs.send(
+    new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify({ clipId, playbackKey }),
+    }),
+  );
 }
 
 async function postWebhook(payload) {
@@ -187,6 +204,11 @@ export async function handler(event) {
       posterKey,
       durationMs,
     });
+    try {
+      await enqueueAiTag({ clipId, playbackKey });
+    } catch (error) {
+      console.error("Failed to enqueue AI tag", error);
+    }
   } catch (error) {
     console.error(error);
     try {

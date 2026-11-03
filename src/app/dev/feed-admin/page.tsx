@@ -83,7 +83,9 @@ export default async function VerifyFeedAdminPage({
           : pinLabel === null
             ? null
             : clip.pin,
-      tags: catalogTags.filter((item) => slugs?.includes(item.slug)),
+      tags: catalogTags.filter(
+        (item) => slugs?.includes(item.slug) || slugs?.includes(item.id),
+      ),
     };
   });
 
@@ -105,7 +107,7 @@ export default async function VerifyFeedAdminPage({
       startId={filtered[0].id}
       gameId={game.id}
       tag={tag ?? null}
-      catalogTags={catalogTags}
+      clipEditHref={(clipId) => `/dev/feed-admin/clips/${clipId}`}
       viewer={viewerFor(as)}
       closeHref={`/games/${game.id}`}
     />

@@ -32,12 +32,13 @@ export async function PUT(
     }
   }
 
-  await getDb().delete(clipTags).where(eq(clipTags.clipId, id));
-  if (tagIds.length > 0) {
-    await getDb()
-      .insert(clipTags)
-      .values(tagIds.map((tagId) => ({ clipId: id, tagId })));
-  }
+  await getDb().transaction(async (tx) => {
+    await tx.delete(clipTags).where(eq(clipTags.clipId, id));
+    if (tagIds.length > 0) {
+      await tx.insert(clipTags).values(tagIds.map((tagId) => ({ clipId: id, tagId })));
+    }
+    await tx.update(clips).set({ tagsLocked: true }).where(eq(clips.id, id));
+  });
 
-  return NextResponse.json({ ok: true, tagIds });
+  return NextResponse.json({ ok: true, tagIds, tagsLocked: true });
 }

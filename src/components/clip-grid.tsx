@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DeleteClipButton } from "@/components/admin/delete-clip-button";
 import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
@@ -107,7 +106,15 @@ export function ClipGrid({
                     <div className="min-w-0 truncate text-xs text-muted">
                       {clip.tags.map((tag) => tag.name).join(", ") || "Untagged"}
                     </div>
-                    <div className="flex shrink-0 items-center">
+                    <div className="flex shrink-0 items-center gap-2">
+                      {canManage ? (
+                        <Link
+                          href={`/admin/games/${gameId}/clips/${clip.id}`}
+                          className="text-xs text-muted"
+                        >
+                          Edit
+                        </Link>
+                      ) : null}
                       <FavoriteButton
                         clipId={clip.id}
                         favorited={clip.favorited}
@@ -125,7 +132,6 @@ export function ClipGrid({
                         onRemainingChange={setDownloadsRemaining}
                         onLimit={(info) => setDownloadLimit(info)}
                       />
-                      {canManage ? <DeleteClipButton clipId={clip.id} /> : null}
                     </div>
                   </div>
                 </article>

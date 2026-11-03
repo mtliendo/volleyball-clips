@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { getDb } from "./db";
 import {
+  clipAiTags,
   clipTags,
   clips,
   favorites,
@@ -10,6 +11,7 @@ import {
   sessionPins,
   tags,
   venues,
+  type ClipAiStatus,
   type PinLabel,
 } from "./db/schema";
 import { omitOriginalKey } from "./clip-public";
@@ -30,6 +32,17 @@ export type ClipPin = {
   position: number;
 };
 
+export type ClipAiInfo = {
+  status: ClipAiStatus;
+  summary: string | null;
+  mappedTagSlugs: string[];
+  tags: string[];
+  highlightScore: number | null;
+  error: string | null;
+  model: string | null;
+  taggedAt: Date | null;
+};
+
 export type PublicClip = {
   id: string;
   gameId: string;
@@ -37,11 +50,26 @@ export type PublicClip = {
   posterKey: string | null;
   durationMs: number | null;
   status: "uploading" | "processing" | "ready" | "failed";
+  tagsLocked: boolean;
   createdAt: Date;
   tags: { id: string; slug: string; name: string }[];
   pin: ClipPin | null;
   favorited: boolean;
+  ai: ClipAiInfo | null;
 };
+
+function toClipAiInfo(row: typeof clipAiTags.$inferSelect): ClipAiInfo {
+  return {
+    status: row.status,
+    summary: row.summary,
+    mappedTagSlugs: row.mappedTagSlugs ?? [],
+    tags: row.tags ?? [],
+    highlightScore: row.highlightScore,
+    error: row.error,
+    model: row.model,
+    taggedAt: row.taggedAt,
+  };
+}
 
 export async function listVenues() {
   if (!isDatabaseConfigured()) return [];
@@ -132,7 +160,7 @@ export async function listGameClips(
   }
 
   const clipIds = clipRows.map((clip) => clip.id);
-  const [tagRows, pinRows, favoriteRows] = await Promise.all([
+  const [tagRows, pinRows, favoriteRows, aiRows] = await Promise.all([
     getDb()
       .select({
         clipId: clipTags.clipId,
@@ -158,6 +186,7 @@ export async function listGameClips(
             ),
           )
       : Promise.resolve([] as { clipId: string }[]),
+    getDb().select().from(clipAiTags).where(inArray(clipAiTags.clipId, clipIds)),
   ]);
 
   const tagsByClip = new Map<string, PublicClip["tags"]>();
@@ -173,6 +202,7 @@ export async function listGameClips(
   }
 
   const favoriteSet = new Set(favoriteRows.map((row) => row.clipId));
+  const aiByClip = new Map(aiRows.map((row) => [row.clipId, toClipAiInfo(row)]));
 
   return clipRows
     .map((clip) => ({
@@ -180,6 +210,7 @@ export async function listGameClips(
       tags: tagsByClip.get(clip.id) ?? [],
       pin: pinByClip.get(clip.id) ?? null,
       favorited: favoriteSet.has(clip.id),
+      ai: aiByClip.get(clip.id) ?? null,
     }))
     .sort((a, b) => {
       if (a.pin && b.pin) return a.pin.position - b.pin.position;
@@ -228,7 +259,7 @@ export async function listFavoriteClips(userId: string): Promise<
 
   const clipIds = rows.map((row) => row.clip.id);
   const gameIds = [...new Set(rows.map((row) => row.clip.gameId))];
-  const [tagRows, pinRows] = await Promise.all([
+  const [tagRows, pinRows, aiRows] = await Promise.all([
     getDb()
       .select({
         clipId: clipTags.clipId,
@@ -240,6 +271,7 @@ export async function listFavoriteClips(userId: string): Promise<
       .innerJoin(tags, eq(clipTags.tagId, tags.id))
       .where(inArray(clipTags.clipId, clipIds)),
     getDb().select().from(sessionPins).where(inArray(sessionPins.gameId, gameIds)),
+    getDb().select().from(clipAiTags).where(inArray(clipAiTags.clipId, clipIds)),
   ]);
 
   const tagsByClip = new Map<string, PublicClip["tags"]>();
@@ -254,11 +286,14 @@ export async function listFavoriteClips(userId: string): Promise<
     pinByClip.set(pin.clipId, { label: pin.label, position: pin.position });
   }
 
+  const aiByClip = new Map(aiRows.map((row) => [row.clipId, toClipAiInfo(row)]));
+
   return rows.map((row) => ({
     ...omitOriginalKey(row.clip),
     tags: tagsByClip.get(row.clip.id) ?? [],
     pin: pinByClip.get(row.clip.id) ?? null,
     favorited: true,
+    ai: aiByClip.get(row.clip.id) ?? null,
     venueName: row.venueName,
     startsAt: row.startsAt,
     gameType: row.gameType,
