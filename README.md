@@ -7,7 +7,7 @@ Volleyball clips from Meta glasses for Focus ([vbpov.com](https://vbpov.com)). P
 - **Nights:** month calendar (`?ym=YYYY-MM&d=YYYY-MM-DD`) lists that day’s sessions (venue, time, type: open gym, league, tournament).
 - **Session grid:** every ready clip, pins first. Optional pin labels: Longest rally, Best dig, Super spike. Each label at most once per session, max 3 pins.
 - **Feed:** tap a clip for a full-screen vertical swipe feed starting on that clip. Deep link `/games/{id}/watch/{clipId}`. Tag filter is respected. The first clip autoplays muted; tap the sound control (or the video) to unmute. One persistent player element stays mounted and keeps that unlock across swipes (iOS Safari treats unmuted play as per-element). The sound icon follows `video.muted`. Neighbors preload muted. Admins can set the session pin from a sheet on this screen, and open a clip’s edit page for tags. Close returns to the grid.
-- **AI tags:** after the 1080p playback copy is ready, a Lambda sends the clip to Gemini 3.8 Flash and writes play-type tags (spike, set, block, rally, and the rest of the catalog) plus a short summary. Manual tag edits on the per-clip admin page win; later AI runs do not overwrite them. Filter chips on the session grid use the same tags, whether they came from AI or an admin.
+- **AI tags:** after the 1080p playback copy is ready, a Lambda sends the clip to Gemini 3.8 Flash and writes play-type tags (spike, set, block, rally, and the rest of the catalog) plus a short summary. The first backfill **replaces** existing `clip_tags` on every ready clip (`tags_locked` starts false). After someone saves tags on the per-clip admin page, later AI runs leave `clip_tags` alone. Filter chips on the session grid use the same tags, whether they came from AI or an admin.
 - **Accounts:** public Auth0 sign-up (Google + email/password). `users` is keyed by Auth0 `sub`.
 - **Favorites:** heart on the grid and in the feed. `/favorites` lists them.
 - **Watch limit:** anonymous visitors get **7 unique clips per day** (pins count). Tracked server-side with an HttpOnly `vb_vid` cookie plus a hashed IP backstop. Already-watched clips replay. Signed-in users and admins are not limited.
@@ -307,7 +307,7 @@ The stack output `TRANSCODE_WEBHOOK_SECRET_PARAMETER` is that name. Do not put t
 
 ## AI tagging
 
-When a clip’s 1080p playback copy is ready, the transcode Lambda sends `{ clipId, playbackKey }` to an SQS queue. A second Lambda (reserved concurrency 2, batch size 1) downloads that playback file from S3, uploads it to the Gemini File API (`media_resolution` low, JSON schema), writes `clip_ai_tags`, maps the result onto the existing tag catalog, and deletes the Gemini file. After 3 receives, the message goes to a dead-letter queue. Re-tagging a clip overwrites its AI row. It does **not** change `clip_tags` if an admin has edited that clip (`clips.tags_locked`).
+When a clip’s 1080p playback copy is ready, the transcode Lambda sends `{ clipId, playbackKey }` to an SQS queue. A second Lambda (reserved concurrency 2, batch size 1) downloads that playback file from S3, uploads it to the Gemini File API (`media_resolution` low, JSON schema), writes `clip_ai_tags`, maps the result onto the existing tag catalog, and deletes the Gemini file. After 3 receives, the message goes to a dead-letter queue. Re-tagging a clip overwrites its AI row. For unlocked clips it also **replaces** `clip_tags` (delete existing rows for that clip, then insert the mapped set — not a merge). It does **not** change `clip_tags` after an admin has saved tags on the per-clip edit page (`clips.tags_locked`). Every existing clip starts unlocked so the first backfill retags them all.
 
 Gemini model: `gemini-3.8-flash`. Prompt and schema live in `src/lib/ai-tags.ts`.
 
@@ -343,7 +343,7 @@ IAM (the CDK stack grants these; you do not add them by hand):
 
 Do **not** put `GEMINI_API_KEY` or the database URL on Vercel. The Next.js app only reads `clip_ai_tags`.
 
-Apply the Drizzle migration (`clip_ai_tags` + `clips.tags_locked`) yourself when you are ready. Clips that already have manual tags are locked so the first AI run cannot replace them:
+Apply the Drizzle migration (`clip_ai_tags` + `clips.tags_locked` defaulting to false) yourself when you are ready. Existing clips stay unlocked so the first backfill replaces their current tags:
 
 ```bash
 pnpm db:migrate   # DATABASE_URL_UNPOOLED, production only from your machine
@@ -375,7 +375,7 @@ Copy `AI_TAG_QUEUE_URL` into the environment of the machine that will run the ba
 
 ### Backfill existing ready clips
 
-About 195 clips already have playback copies and no AI row. After CDK deploy + the migration:
+About 195 clips already have playback copies and no AI row. After CDK deploy + the migration, enqueue them. The tagging Lambda replaces each unlocked clip’s `clip_tags` with the mapped AI set:
 
 ```bash
 # See what would be queued (no AWS send)

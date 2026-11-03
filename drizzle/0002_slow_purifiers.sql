@@ -17,6 +17,5 @@ CREATE TABLE "clip_ai_tags" (
 );
 --> statement-breakpoint
 ALTER TABLE "clips" ADD COLUMN "tags_locked" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-UPDATE "clips" SET "tags_locked" = true WHERE id IN (SELECT DISTINCT clip_id FROM clip_tags);--> statement-breakpoint
 ALTER TABLE "clip_ai_tags" ADD CONSTRAINT "clip_ai_tags_clip_id_clips_id_fk" FOREIGN KEY ("clip_id") REFERENCES "public"."clips"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "clip_ai_tags_status" ON "clip_ai_tags" USING btree ("status");

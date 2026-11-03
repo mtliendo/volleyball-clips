@@ -55,6 +55,29 @@ describe("tagClipPlayback", () => {
     assert.equal(saved.at(-1)?.status, "done");
   });
 
+  it("replaces existing unlocked catalog tags instead of merging", async () => {
+    const gemini = mockGemini();
+    const clipId = "11111111-1111-4111-8111-111111111111";
+    const tagsByClip = new Map<string, string[]>([[clipId, ["funny", "block"]]]);
+
+    const { appliedTagSlugs } = await tagClipPlayback({
+      clipId,
+      videoBytes: new Uint8Array([0, 1, 2, 3]),
+      catalog: CATALOG,
+      tagsLocked: false,
+      gemini,
+      save: async () => {},
+      replaceCatalogTags: async (tagIds) => {
+        tagsByClip.set(clipId, tagIds);
+      },
+    });
+
+    assert.deepEqual(appliedTagSlugs?.slice().sort(), ["serve", "spike"]);
+    assert.deepEqual(tagsByClip.get(clipId)?.slice().sort(), ["1", "2"]);
+    assert.equal(tagsByClip.get(clipId)?.includes("funny"), false);
+    assert.equal(tagsByClip.get(clipId)?.includes("block"), false);
+  });
+
   it("does not overwrite catalog tags when the admin has locked them", async () => {
     const gemini = mockGemini();
     let replaced = false;

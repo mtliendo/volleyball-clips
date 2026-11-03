@@ -3,6 +3,7 @@ import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { Client } from "pg";
 import { tagClipPlayback } from "../../../src/lib/ai-tag-pipeline";
 import { GEMINI_AI_TAG_MODEL, type ClipAiTagRecord } from "../../../src/lib/ai-tags";
+import { replaceClipCatalogTags } from "../../../src/lib/clip-catalog-tags";
 import { createGeminiTagClient } from "../../../src/lib/gemini-files";
 
 const s3 = new S3Client({});
@@ -91,13 +92,7 @@ async function saveAiRecord(db: Client, record: ClipAiTagRecord) {
 }
 
 async function replaceCatalogTags(db: Client, clipId: string, tagIds: string[]) {
-  await db.query("DELETE FROM clip_tags WHERE clip_id = $1", [clipId]);
-  for (const tagId of tagIds) {
-    await db.query(
-      "INSERT INTO clip_tags (clip_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-      [clipId, tagId],
-    );
-  }
+  await replaceClipCatalogTags((sql, params) => db.query(sql, params), clipId, tagIds);
 }
 
 async function downloadPlayback(key: string) {

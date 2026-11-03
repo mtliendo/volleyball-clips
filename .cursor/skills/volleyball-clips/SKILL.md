@@ -21,7 +21,7 @@ Vertical Meta-glasses volleyball clips. Public calendar + game feed; only Auth0 
 - `games`: venue, `starts_at` timestamptz, type `open_gym|league|tournament`
 - `clips`: game, `original_key` / `playback_key` / `poster_key`, `duration_ms`, status `uploading|processing|ready|failed`, `tags_locked`, `created_at`
 - `tags` (admin-managed; seed ace/serve/dig/set/spike/block/rally/save/funny) and `clip_tags`
-- `clip_ai_tags`: one row per clip (summary, actions, rally stats, highlight_score, raw + mapped tags, model, status `pending|done|failed`, error, tagged_at). AI writes mapped slugs into `clip_tags` only while `clips.tags_locked` is false. Admin tag edits set `tags_locked`.
+- `clip_ai_tags`: one row per clip (summary, actions, rally stats, highlight_score, raw + mapped tags, model, status `pending|done|failed`, error, tagged_at). While `clips.tags_locked` is false, AI **replaces** `clip_tags` with the mapped set (delete then insert). Admin tag edits set `tags_locked`. Existing clips start unlocked so the first backfill retags them all.
 
 Calendar grouping uses `APP_TIMEZONE` (default `America/Chicago`).
 
@@ -37,7 +37,7 @@ Public pages and `POST /api/webhooks/transcode` stay anonymous. The webhook is H
 2. `POST /api/admin/clips/presign` creates a clip (`uploading`) and a per-key presigned PUT (video types, ≤1 GB, 15 min).
 3. Browser PUTs to S3; then `POST /api/admin/clips/[id]/complete` sets `processing`.
 4. S3 `uploads/` event runs the ffmpeg Lambda. It writes `playback/{gameId}/{clipId}/playback.mp4` (1080-wide H.264 ~5 Mbps/30 fps, faststart) and `posters/.../poster.jpg`, then webhooks the app. After a successful ready webhook it enqueues `{ clipId, playbackKey }` on the AI tag SQS queue.
-5. The tagging Lambda (reserved concurrency 2, batch size 1, DLQ after 3 receives) downloads the playback copy, calls Gemini 3.8 Flash, upserts `clip_ai_tags`, and writes mapped catalog tags to `clip_tags` unless `tags_locked`.
+5. The tagging Lambda (reserved concurrency 2, batch size 1, DLQ after 3 receives) downloads the playback copy, calls Gemini 3.8 Flash, upserts `clip_ai_tags`, and replaces `clip_tags` with the mapped set unless `tags_locked`.
 6. Admins edit one clip at `/admin/games/[id]/clips/[clipId]` (`PUT /api/admin/clips/[id]/tags`). That locks tags so a later AI run cannot overwrite them.
 
 S3 credentials: `@vercel/functions/oidc` `awsCredentialsProvider({ roleArn: AWS_ROLE_ARN })` on Vercel. Locally, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are allowed.
