@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
-import { FeedTagSheet, type CatalogTag } from "@/components/feed-tag-sheet";
+import { FeedTagSheet } from "@/components/feed-tag-sheet";
 import { SignupWall } from "@/components/signup-wall";
 import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { cdnUrl } from "@/lib/cdn";
@@ -93,22 +93,9 @@ function pinSeed(clips: PublicClip[]) {
   >;
 }
 
-function tagSeed(clips: PublicClip[]) {
-  return Object.fromEntries(clips.map((clip) => [clip.id, clip.tags])) as Record<
-    string,
-    PublicClip["tags"]
-  >;
-}
-
 function pinKey(clips: PublicClip[]) {
   return clips
     .map((clip) => `${clip.id}:${clip.pin?.label ?? ""}:${clip.pin?.position ?? ""}`)
-    .join(",");
-}
-
-function playTagKey(clips: PublicClip[]) {
-  return clips
-    .map((clip) => `${clip.id}:${clip.tags.map((tag) => tag.slug).sort().join("+")}`)
     .join(",");
 }
 
@@ -157,7 +144,7 @@ export function VerticalFeed({
   startId,
   gameId,
   tag,
-  catalogTags = [],
+  clipEditHref,
   viewer,
   closeHref,
   forceWall = null,
@@ -168,7 +155,7 @@ export function VerticalFeed({
   startId: string;
   gameId: string;
   tag: string | null;
-  catalogTags?: CatalogTag[];
+  clipEditHref?: (clipId: string) => string;
   viewer: Viewer;
   closeHref: string;
   forceWall?: "watch" | "download" | null;
@@ -196,13 +183,6 @@ export function VerticalFeed({
   if (seededPinKey !== serverPinKey) {
     setSeededPinKey(serverPinKey);
     setPinsByClip(pinSeed(clips));
-  }
-  const serverTagKey = playTagKey(clips);
-  const [tagsByClip, setTagsByClip] = useState(() => tagSeed(clips));
-  const [seededTagKey, setSeededTagKey] = useState(serverTagKey);
-  if (seededTagKey !== serverTagKey) {
-    setSeededTagKey(serverTagKey);
-    setTagsByClip(tagSeed(clips));
   }
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
@@ -648,29 +628,6 @@ export function VerticalFeed({
     setTagPending(false);
   }
 
-  async function togglePlayTag(tag: CatalogTag) {
-    if (!active) return;
-    const clipId = active.id;
-    const current = tagsByClip[clipId] ?? active.tags;
-    const has = current.some((item) => item.id === tag.id);
-    const next = has ? current.filter((item) => item.id !== tag.id) : [...current, tag];
-    setTagsByClip((prev) => ({ ...prev, [clipId]: next }));
-    setTagPending(true);
-    try {
-      const response = await fetch(`/api/admin/clips/${clipId}/tags`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tagIds: next.map((item) => item.id) }),
-      });
-      if (!response.ok) {
-        setTagsByClip((prev) => ({ ...prev, [clipId]: current }));
-      }
-    } catch {
-      setTagsByClip((prev) => ({ ...prev, [clipId]: current }));
-    }
-    setTagPending(false);
-  }
-
   if (clips.length === 0 || !active) {
     return (
       <div className="feed-root grid place-items-center px-4">
@@ -683,8 +640,9 @@ export function VerticalFeed({
   }
 
   const activePin = pinsByClip[active.id] ?? active.pin;
-  const activePlayTags = tagsByClip[active.id] ?? active.tags;
   const pinCount = Object.values(pinsByClip).filter(Boolean).length;
+  const editHref =
+    clipEditHref?.(active.id) ?? `/admin/games/${gameId}/clips/${active.id}`;
 
   return (
     <div className="feed-root" data-active-clip={active.id}>
@@ -763,7 +721,7 @@ export function VerticalFeed({
               type="button"
               className="icon-btn"
               data-pin-control=""
-              aria-pressed={Boolean(activePin) || activePlayTags.length > 0}
+              aria-pressed={Boolean(activePin)}
               aria-label="Set tags"
               onClick={(event) => {
                 event.stopPropagation();
@@ -853,15 +811,13 @@ export function VerticalFeed({
         <FeedTagSheet
           open={tagSheetOpen}
           clipId={active.id}
+          editHref={editHref}
           pin={activePin}
           pinsByClip={pinsByClip}
-          playTags={activePlayTags}
-          catalogTags={catalogTags}
           pinCount={pinCount}
           pending={tagPending}
           onClose={() => setTagSheetOpen(false)}
           onPickPin={(label) => void pickPin(label)}
-          onTogglePlayTag={(item) => void togglePlayTag(item)}
         />
       ) : null}
     </div>

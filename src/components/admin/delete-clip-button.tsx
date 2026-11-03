@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function DeleteClipButton({ clipId }: { clipId: string }) {
+export function DeleteClipButton({
+  clipId,
+  redirectTo,
+}: {
+  clipId: string;
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -27,6 +33,11 @@ export function DeleteClipButton({ clipId }: { clipId: string }) {
       return;
     }
 
+    if (redirectTo) {
+      router.push(redirectTo);
+      router.refresh();
+      return;
+    }
     router.refresh();
   }
 

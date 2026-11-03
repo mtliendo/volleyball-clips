@@ -1,41 +1,34 @@
 "use client";
 
+import Link from "next/link";
 import { PIN_LABELS } from "@/lib/labels";
 import type { PinLabel } from "@/lib/db/schema";
 import type { ClipPin } from "@/lib/queries";
 
-export type CatalogTag = { id: string; slug: string; name: string };
-
 export function FeedTagSheet({
   open,
   clipId,
+  editHref,
   pin,
   pinsByClip,
-  playTags,
-  catalogTags,
   pinCount,
   pending,
   onClose,
   onPickPin,
-  onTogglePlayTag,
 }: {
   open: boolean;
   clipId: string;
+  editHref: string;
   pin: ClipPin | null;
   pinsByClip: Record<string, ClipPin | null>;
-  playTags: CatalogTag[];
-  catalogTags: CatalogTag[];
   pinCount: number;
   pending: boolean;
   onClose: () => void;
   onPickPin: (label: PinLabel | null) => void;
-  onTogglePlayTag: (tag: CatalogTag) => void;
 }) {
   if (!open) {
     return null;
   }
-
-  const selected = new Set(playTags.map((tag) => tag.id));
 
   return (
     <div className="feed-sheet-root">
@@ -58,7 +51,7 @@ export function FeedTagSheet({
             <h2 id="feed-tag-sheet-title" className="display text-2xl">
               Tags
             </h2>
-            <p className="meta mt-1">Pin the highlight, then mark the play.</p>
+            <p className="meta mt-1">Pin the highlight. Edit tags on the clip page.</p>
           </div>
           <button type="button" className="btn btn-ghost !min-h-10" onClick={onClose}>
             Done
@@ -109,31 +102,10 @@ export function FeedTagSheet({
           </div>
         </section>
 
-        <section className="mt-6 space-y-2">
-          <h3 className="text-sm text-muted">Play type</h3>
-          <p className="meta">Used by the filter chips. Tap as many as fit.</p>
-          {catalogTags.length === 0 ? (
-            <p className="meta">No play types yet.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {catalogTags.map((tag) => {
-                const on = selected.has(tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    className={`chip ${on ? "chip-active" : ""}`}
-                    data-play-tag={tag.slug}
-                    aria-pressed={on}
-                    disabled={pending}
-                    onClick={() => onTogglePlayTag(tag)}
-                  >
-                    {tag.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+        <section className="mt-6">
+          <Link href={editHref} className="btn btn-ghost" data-clip-edit="">
+            Edit this clip
+          </Link>
         </section>
       </div>
     </div>

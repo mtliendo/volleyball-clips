@@ -1,5 +1,5 @@
 /**
- * Headless check: admin tag sheet (session pin + play type).
+ * Headless check: admin pin sheet and per-clip tag edit.
  *
  *   VERIFY_FEED_HARNESS=1 node scripts/verify-feed-admin-tags.mjs [baseUrl]
  */
@@ -79,6 +79,9 @@ async function main() {
       }
       pins[clipId] = label;
     }
+    if (url.includes("/tags") && clipId) {
+      play[clipId] = Array.isArray(body.tagIds) ? body.tagIds : [];
+    }
     await context.addCookies([
       { name: PIN_COOKIE, value: JSON.stringify(pins), url: baseUrl, sameSite: "Lax" },
       { name: PLAY_COOKIE, value: JSON.stringify(play), url: baseUrl, sameSite: "Lax" },
@@ -137,8 +140,8 @@ async function main() {
     if ((await page.locator("[data-pin-option='longest_rally']").count()) === 0) {
       throw new Error("session pin options missing");
     }
-    if ((await page.locator("[data-play-tag]").count()) === 0) {
-      throw new Error("play-type tags missing");
+    if ((await page.locator("[data-clip-edit]").count()) === 0) {
+      throw new Error("edit-clip link missing");
     }
     await page.screenshot({
       path: "/opt/cursor/artifacts/screenshots/admin_tag_sheet.png",
@@ -197,19 +200,19 @@ async function main() {
     await page.waitForFunction(() => !document.querySelector("[data-pin-badge]"));
     console.log("ok clear pin");
 
+    await page.locator("[data-clip-edit]").click();
+    await page.waitForSelector("[data-play-tag='serve']", { timeout: 15000 });
     const playType = page.locator("[data-play-tag='serve']");
-    if ((await playType.count()) === 0) {
-      throw new Error("serve play type missing");
-    }
     await playType.click();
     await page.waitForFunction(() => {
       return document.querySelector("[data-play-tag='serve']")?.getAttribute("aria-pressed") === "true";
     });
     play[clip1] = ["serve"];
     await context.addCookies([
+      { name: PIN_COOKIE, value: JSON.stringify(pins), url: baseUrl, sameSite: "Lax" },
       { name: PLAY_COOKIE, value: JSON.stringify(play), url: baseUrl, sameSite: "Lax" },
     ]);
-    console.log("ok set play type serve");
+    console.log("ok set play type serve on clip edit page");
 
     await page.goto(`${baseUrl}/dev/feed-admin?as=admin&tag=serve`, {
       waitUntil: "domcontentloaded",
@@ -224,9 +227,7 @@ async function main() {
     }
     console.log("ok clip appears under serve filter", filtered.clipId);
 
-    await page.goto(`${baseUrl}/dev/feed-admin?as=admin`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("[data-pin-control]", { timeout: 15000 });
-    await page.locator("[data-pin-control]").click();
+    await page.goto(`${baseUrl}/dev/feed-admin/clips/${clip1}`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-play-tag='serve']");
     await page.locator("[data-play-tag='serve']").click();
     await page.waitForFunction(() => {
@@ -234,6 +235,7 @@ async function main() {
     });
     play[clip1] = [];
     await context.addCookies([
+      { name: PIN_COOKIE, value: JSON.stringify(pins), url: baseUrl, sameSite: "Lax" },
       { name: PLAY_COOKIE, value: JSON.stringify(play), url: baseUrl, sameSite: "Lax" },
     ]);
     await page.goto(`${baseUrl}/dev/feed-admin?as=admin&tag=serve`, {

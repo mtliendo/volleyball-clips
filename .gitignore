@@ -45,6 +45,7 @@ next-env.d.ts
 # aws cdk
 infra/cdk.out
 infra/node_modules
+infra/lambda/transcode/node_modules
 infra/layers/ffmpeg/bin
 
 # local secrets

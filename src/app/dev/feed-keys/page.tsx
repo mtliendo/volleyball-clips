@@ -6,7 +6,6 @@ import { VerticalFeed } from "@/components/vertical-feed";
 import {
   VERIFY_DOWNLOADS_COOKIE,
   VERIFY_GAME_ID,
-  verifyCatalogTags,
   verifyClips,
   verifyViewer,
 } from "@/lib/verify-feed";
@@ -53,7 +52,6 @@ export default async function VerifyFeedKeysPage({
         startId={clips[0].id}
         gameId={VERIFY_GAME_ID}
         tag={null}
-        catalogTags={verifyCatalogTags()}
         viewer={verifyViewer({
           isAdmin: as === "admin",
           isPro: as === "pro",

@@ -7,7 +7,7 @@ import {
   initialFeedPlayback,
   isPlaybackSigningEnabled,
 } from "@/lib/playback-access";
-import { getGameWithVenue, listGameClips, listTags } from "@/lib/queries";
+import { getGameWithVenue, listGameClips } from "@/lib/queries";
 import { clipPageMetadata, getClipShare } from "@/lib/share-metadata";
 
 export async function generateMetadata({
@@ -44,13 +44,10 @@ export default async function WatchPage({
   }
 
   const viewer = await getViewer();
-  const [clips, catalogTags] = await Promise.all([
-    listGameClips(id, {
-      readyOnly: true,
-      favoriteUserId: viewer.appUserId,
-    }),
-    listTags(),
-  ]);
+  const clips = await listGameClips(id, {
+    readyOnly: true,
+    favoriteUserId: viewer.appUserId,
+  });
 
   const filtered = tag
     ? clips.filter((clip) => clip.tags.some((item) => item.slug === tag))
@@ -74,7 +71,6 @@ export default async function WatchPage({
       startId={clipId}
       gameId={id}
       tag={tag ?? null}
-      catalogTags={catalogTags}
       viewer={viewer}
       closeHref={`/games/${id}${closeQuery}`}
       initialPlayback={initialPlayback}

@@ -5,13 +5,18 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 
 /** Create once: `aws ssm put-parameter --name … --type SecureString`. CloudFormation cannot. */
 export const TRANSCODE_WEBHOOK_SECRET_PARAMETER =
   "/volleyball-clips/transcode-webhook-secret";
+export const GEMINI_API_KEY_PARAMETER = "/volleyball-clips/gemini-api-key";
+export const DATABASE_URL_PARAMETER = "/volleyball-clips/database-url";
 
 function decodePemInput(value: string) {
   const trimmed = value.trim();
@@ -189,6 +194,71 @@ export class VolleyballClipsStack extends cdk.Stack {
       { prefix: "uploads/" },
     );
 
+    const aiTagDlq = new sqs.Queue(this, "AiTagDlq", {
+      retentionPeriod: cdk.Duration.days(14),
+    });
+    const aiTagQueue = new sqs.Queue(this, "AiTagQueue", {
+      visibilityTimeout: cdk.Duration.minutes(3),
+      retentionPeriod: cdk.Duration.days(4),
+      deadLetterQueue: {
+        queue: aiTagDlq,
+        maxReceiveCount: 3,
+      },
+    });
+
+    const aiTagFn = new lambdaNodejs.NodejsFunction(this, "AiTagFn", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.X86_64,
+      entry: path.join(__dirname, "../lambda/tag/index.ts"),
+      handler: "handler",
+      memorySize: 2048,
+      timeout: cdk.Duration.minutes(2),
+      reservedConcurrentExecutions: 2,
+      description: "Tag ready volleyball clips with Gemini 3.8 Flash",
+      environment: {
+        BUCKET: bucket.bucketName,
+        GEMINI_API_KEY_PARAMETER,
+        DATABASE_URL_PARAMETER,
+        GEMINI_MODEL: "gemini-3.8-flash",
+      },
+      bundling: {
+        format: lambdaNodejs.OutputFormat.CJS,
+        target: "node22",
+        minify: true,
+      },
+    });
+
+    aiTagFn.addEventSource(
+      new lambdaEventSources.SqsEventSource(aiTagQueue, {
+        batchSize: 1,
+        maxConcurrency: 2,
+        reportBatchItemFailures: true,
+      }),
+    );
+
+    bucket.grantRead(aiTagFn, "playback/*");
+    aiTagFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: "ReadAiTagSecrets",
+        actions: ["ssm:GetParameter"],
+        resources: [
+          cdk.Stack.of(this).formatArn({
+            service: "ssm",
+            resource: "parameter",
+            resourceName: GEMINI_API_KEY_PARAMETER.slice(1),
+          }),
+          cdk.Stack.of(this).formatArn({
+            service: "ssm",
+            resource: "parameter",
+            resourceName: DATABASE_URL_PARAMETER.slice(1),
+          }),
+        ],
+      }),
+    );
+
+    transcodeFn.addEnvironment("AI_TAG_QUEUE_URL", aiTagQueue.queueUrl);
+    aiTagQueue.grantSendMessages(transcodeFn);
+
     const origin = origins.S3BucketOrigin.withOriginAccessControl(bucket);
     const downloadHeaders = new cloudfront.ResponseHeadersPolicy(
       this,
@@ -357,6 +427,25 @@ export class VolleyballClipsStack extends cdk.Stack {
       value: TRANSCODE_WEBHOOK_SECRET_PARAMETER,
       description:
         "SSM SecureString name. Create it once, then copy the decrypted value into TRANSCODE_WEBHOOK_SECRET",
+    });
+    new cdk.CfnOutput(this, "AI_TAG_QUEUE_URL", {
+      value: aiTagQueue.queueUrl,
+      description: "SQS queue for AI tagging. Used by the transcode Lambda and the backfill script.",
+    });
+    new cdk.CfnOutput(this, "AI_TAG_DLQ_URL", {
+      value: aiTagDlq.queueUrl,
+      description: "Dead-letter queue after 3 failed AI tag receives",
+    });
+    new cdk.CfnOutput(this, "AI_TAG_FUNCTION_NAME", {
+      value: aiTagFn.functionName,
+    });
+    new cdk.CfnOutput(this, "GEMINI_API_KEY_PARAMETER", {
+      value: GEMINI_API_KEY_PARAMETER,
+      description: "SSM SecureString name for GEMINI_API_KEY. Create it once.",
+    });
+    new cdk.CfnOutput(this, "DATABASE_URL_PARAMETER", {
+      value: DATABASE_URL_PARAMETER,
+      description: "SSM SecureString name for the Neon pooled DATABASE_URL the tagging Lambda uses.",
     });
   }
 }

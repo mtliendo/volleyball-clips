@@ -9,7 +9,7 @@ const stack = new VolleyballClipsStack(app, "VolleyballClipsStack", {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: "us-east-2",
   },
-  description: "S3, CloudFront, transcode Lambda, and Vercel OIDC role for volleyball-clips",
+  description: "S3, CloudFront, transcode Lambda, AI tag queue, and Vercel OIDC role for volleyball-clips",
 });
 
 cdk.Tags.of(stack).add("project", "volleyball-clips");

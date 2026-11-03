@@ -14,11 +14,14 @@
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "stripe:setup": "tsx scripts/setup-stripe.ts",
-    "verify:lockdown": "tsx scripts/verify-lockdown.ts"
+    "verify:lockdown": "tsx scripts/verify-lockdown.ts",
+    "ai-tags:enqueue": "tsx scripts/enqueue-ai-tags.ts",
+    "ai-tags:dry-run": "tsx scripts/ai-tag-dry-run.ts"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.33.0",
     "@aws-sdk/client-s3": "^3.1156.0",
+    "@aws-sdk/client-sqs": "^3.1156.0",
     "@aws-sdk/cloudfront-signer": "^3.1156.0",
     "@aws-sdk/credential-provider-web-identity": "^3.972.82",
     "@aws-sdk/s3-request-presigner": "^3.1156.0",

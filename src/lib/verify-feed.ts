@@ -46,9 +46,11 @@ export function verifyClips(): PublicClip[] {
     durationMs: 8000,
     status: "ready",
     createdAt,
+    tagsLocked: false,
     tags: index === 0 ? [{ id: "tag-spike", slug: "spike", name: "Spike" }] : [],
     pin: null,
     favorited: false,
+    ai: null,
   }));
 }
 
