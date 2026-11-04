@@ -4,6 +4,7 @@ import { requireAdminApi } from "@/lib/admin";
 import { getDb } from "@/lib/db";
 import { games, venues } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
+import { revalidatePublicContent } from "@/lib/public-cache";
 
 export async function PATCH(
   request: Request,
@@ -32,6 +33,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Venue not found" }, { status: 404 });
   }
 
+  revalidatePublicContent({ all: true });
   return NextResponse.json(venue);
 }
 

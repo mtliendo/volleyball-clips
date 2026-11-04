@@ -1,50 +1,33 @@
-import { TZDate } from "@date-fns/tz";
-import Link from "next/link";
-import { connection } from "next/server";
 import { Suspense } from "react";
+import Link from "next/link";
 import { TrackLink } from "@/components/track-click";
-import { GameList } from "@/components/game-list";
-import { MonthCalendar } from "@/components/month-calendar";
-import { NightScroll } from "@/components/night-scroll";
+import { HomeNights, HomeNightsFallback } from "@/components/home-nights";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { cdnUrl } from "@/lib/cdn";
-import {
-  APP_TIMEZONE,
-  dayKey,
-  formatGameDay,
-  latestSessionDay,
-  parseYearMonth,
-} from "@/lib/dates";
-import { listMonthGames, listRecentReadyPosters } from "@/lib/queries";
+import { latestSessionDay, dayKey, parseYearMonth, yearMonthKey } from "@/lib/dates";
+import { getCachedMonthGames, getCachedRecentPosters } from "@/lib/public-data";
 
 const TAPE = ["open gym", "league", "tournament", "spike", "dig", "rally"];
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ ym?: string; d?: string }>;
-}) {
-  const { ym, d } = await searchParams;
-  const explicitDay = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined;
-  if (!ym || !explicitDay) {
-    await connection();
-  }
-  const yearMonth = parseYearMonth(ym);
-  const [games, posters] = await Promise.all([
-    listMonthGames(yearMonth),
-    listRecentReadyPosters(6),
+export const dynamic = "force-static";
+export const revalidate = 900;
+
+export default async function HomePage() {
+  const yearMonth = parseYearMonth();
+  const [{ games }, posters] = await Promise.all([
+    getCachedMonthGames(yearMonthKey(yearMonth)),
+    getCachedRecentPosters(6),
   ]);
   const sessionDays = [...new Set(games.map((game) => dayKey(game.startsAt)))];
-  const selectedDay = explicitDay ?? latestSessionDay(sessionDays);
-  const dayGames = selectedDay
-    ? games.filter((game) => dayKey(game.startsAt) === selectedDay)
-    : [];
+  const selectedDay = latestSessionDay(sessionDays);
+  const nightsProps = {
+    initialYm: yearMonthKey(yearMonth),
+    initialGames: games,
+    initialSelectedDay: selectedDay,
+  };
 
   return (
     <>
-      <Suspense fallback={null}>
-        <NightScroll selectedDay={selectedDay} sessionDays={sessionDays} />
-      </Suspense>
       <section className="hero-court">
         {posters.length > 0 ? (
           <ul className="hero-stack">
@@ -90,35 +73,9 @@ export default async function HomePage({
         </div>
       </div>
 
-      <div className="container space-y-6 pt-10 pb-[calc(var(--space-2xl)+env(safe-area-inset-bottom,0px))]">
-        <MonthCalendar
-          yearMonth={yearMonth}
-          selectedDay={selectedDay}
-          games={games.map((game) => ({ id: game.id, day: dayKey(game.startsAt) }))}
-        />
-        {selectedDay ? (
-          <section className="max-md:min-h-[calc(100svh-5.5rem)] space-y-3">
-            <h2
-              id="night-sessions"
-              tabIndex={-1}
-              className="display text-section"
-            >
-              {formatGameDay(
-                new TZDate(
-                  Number(selectedDay.slice(0, 4)),
-                  Number(selectedDay.slice(5, 7)) - 1,
-                  Number(selectedDay.slice(8, 10)),
-                  12,
-                  APP_TIMEZONE,
-                ),
-              )}
-            </h2>
-            <GameList games={dayGames} emptyLabel="No sessions on this day." />
-          </section>
-        ) : (
-          <p className="text-center text-sm text-muted">Select a day to list its sessions.</p>
-        )}
-      </div>
+      <Suspense fallback={<HomeNightsFallback {...nightsProps} />}>
+        <HomeNights {...nightsProps} />
+      </Suspense>
     </>
   );
 }

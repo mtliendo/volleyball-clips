@@ -76,8 +76,10 @@ phone / laptop
                                           downloads proxy through the app)
 ```
 
+Public catalog pages are cached so anonymous visits do not wake Neon. `/`, `/games/[id]`, `/games/[id]/watch/[clipId]`, and their Open Graph images use ISR (15 minutes) plus on-demand `revalidatePath` / `revalidateTag` when an admin adds, edits, or deletes a game or clip, or when the transcode webhook marks a clip ready. Calendar `?ym=` / `?d=` is handled in the browser; other months load from `/api/public/month` (same cache). Favorites, the guest 7-a-day wall, sign-in, downloads, and admin controls load from `/api/me`, `/api/watch`, and the existing admin APIs. Lambdas that write the database directly can also `POST /api/revalidate` with `TRANSCODE_WEBHOOK_SECRET` (HMAC `x-webhook-signature` or `Authorization: Bearer …`). AI tag updates rely on the 15-minute window unless that endpoint is called. `robots.txt` keeps `/`, games, and clips crawlable and blocks `/admin`, `/api`, `/dev/`, and `/?ym=`.
+
 - **App:** Next.js App Router on Vercel, TypeScript, Tailwind v4, pnpm.
-- **DB:** Neon Postgres, Drizzle schema in `src/lib/db/schema.ts`.
+- **DB:** Neon Postgres, Drizzle schema in `src/lib/db/schema.ts`. The app upgrades `sslmode=require` to `verify-full` at runtime, so the production `DATABASE_URL` does not need to change.
 - **Auth:** `@auth0/nextjs-auth0` v4. Public sign-ups are enabled. Admin access is the Auth0 `admin` role, delivered on the session as `user["https://vbpov.com/roles"]` (see Auth0 below).
 - **AWS (us-east-2, tag `project=volleyball-clips`):** private S3 bucket, CloudFront with origin access control, transcode Lambda, AI tag SQS queue + DLQ + Lambda, IAM role for Vercel OIDC.
 

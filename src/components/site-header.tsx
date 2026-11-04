@@ -1,14 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useUser } from "@auth0/nextjs-auth0/client";
 import { GuestAuthNav } from "@/components/guest-auth-nav";
 import { TrackLink } from "@/components/track-click";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
-import { getSession, isAdmin } from "@/lib/admin";
-import { isAuth0Configured } from "@/lib/env";
+import { isAdmin } from "@/lib/roles";
 
-export async function SiteHeader() {
-  const session = await getSession();
-  const authReady = isAuth0Configured();
-  const admin = isAdmin(session);
+export function SiteHeader({ authReady }: { authReady: boolean }) {
+  const { user, isLoading } = useUser();
+  const signedIn = Boolean(user);
+  const admin = isAdmin(user);
 
   return (
     <header className="sticky top-0 z-(--z-sticky-nav) border-b border-rule bg-paper/88 backdrop-blur-md">
@@ -20,7 +22,7 @@ export async function SiteHeader() {
           <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="text-muted hover:text-ink">
             Pricing
           </TrackLink>
-          {session ? (
+          {isLoading ? null : signedIn ? (
             <>
               <Link href="/favorites" className="text-muted hover:text-ink">
                 Favorites

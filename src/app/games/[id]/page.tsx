@@ -1,14 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { connection } from "next/server";
-import { GameAdminPanel } from "@/components/admin/game-admin-panel";
-import { ClipGrid } from "@/components/clip-grid";
+import { GameSession } from "@/components/game-session";
 import { formatGameWhen, toDatetimeLocalValue } from "@/lib/dates";
-import { getViewer } from "@/lib/entitlements";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
-import { getGameWithVenue, listGameClips, listTags, listVenues } from "@/lib/queries";
+import { getCachedGameClips, getCachedGameWithVenue, getCachedTags } from "@/lib/public-data";
+import { listPublicGameIds } from "@/lib/queries";
 import { getSessionShare, sessionPageMetadata } from "@/lib/share-metadata";
+
+export const dynamic = "force-static";
+export const revalidate = 900;
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  try {
+    const ids = await listPublicGameIds();
+    return ids.map((id) => ({ id }));
+  } catch {
+    return [];
+  }
+}
 
 export async function generateMetadata({
   params,
@@ -33,18 +44,12 @@ export default async function GamePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await connection();
-  const game = await getGameWithVenue(id);
+  const game = await getCachedGameWithVenue(id);
   if (!game) {
     notFound();
   }
 
-  const viewer = await getViewer();
-  const [clips, tags, venues] = await Promise.all([
-    listGameClips(id, { readyOnly: true, favoriteUserId: viewer.appUserId }),
-    listTags(),
-    viewer.isAdmin ? listVenues() : Promise.resolve([]),
-  ]);
+  const [clips, tags] = await Promise.all([getCachedGameClips(id), getCachedTags()]);
 
   return (
     <div className="container space-y-5 py-6">
@@ -56,22 +61,17 @@ export default async function GamePage({
         <h1 className="display text-display-s">{game.venueName}</h1>
         <p className="meta">{formatGameWhen(game.startsAt)}</p>
       </header>
-      {viewer.isAdmin ? (
-        <GameAdminPanel
-          venues={venues}
-          game={{
-            id: game.id,
-            venueId: game.venueId,
-            venueName: game.venueName,
-            startsAtLocal: toDatetimeLocalValue(game.startsAt),
-            type: game.type,
-          }}
-        />
-      ) : null}
-      {viewer.canDownload && viewer.downloadsRemaining !== null ? (
-        <p className="meta">{viewer.downloadsRemaining} downloads left this week, in 1080p</p>
-      ) : null}
-      <ClipGrid clips={clips} tags={tags} gameId={game.id} viewer={viewer} canManage={viewer.isAdmin} />
+      <GameSession
+        game={{
+          id: game.id,
+          venueId: game.venueId,
+          venueName: game.venueName,
+          startsAtLocal: toDatetimeLocalValue(game.startsAt),
+          type: game.type,
+        }}
+        clips={clips}
+        tags={tags}
+      />
     </div>
   );
 }

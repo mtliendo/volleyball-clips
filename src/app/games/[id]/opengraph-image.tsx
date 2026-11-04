@@ -7,6 +7,8 @@ import { SITE_DESCRIPTION } from "@/lib/site";
 export const alt = "VB POV session";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+export const dynamic = "force-static";
+export const revalidate = 900;
 
 export default async function Image({
   params,

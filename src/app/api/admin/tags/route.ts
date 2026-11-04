@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
 import { slugify } from "@/lib/labels";
+import { revalidatePublicContent } from "@/lib/public-cache";
 
 export async function GET() {
   const { error } = await requireAdminApi();
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
 
   try {
     const [tag] = await getDb().insert(tags).values({ name, slug }).returning();
+    revalidatePublicContent({ all: true });
     return NextResponse.json(tag, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Tag already exists" }, { status: 409 });

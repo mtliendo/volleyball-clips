@@ -186,6 +186,11 @@ export function VerticalFeed({
   }
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
+  const [seededRemaining, setSeededRemaining] = useState(viewer.downloadsRemaining);
+  if (seededRemaining !== viewer.downloadsRemaining) {
+    setSeededRemaining(viewer.downloadsRemaining);
+    setDownloadsRemaining(viewer.downloadsRemaining);
+  }
   const [downloadLimit, setDownloadLimit] = useState<{ nextAt: string | null } | null>(() =>
     forceWall === "download" ? { nextAt: viewer.nextDownloadAt } : null,
   );

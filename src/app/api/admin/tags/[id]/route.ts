@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { tags } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
 import { slugify } from "@/lib/labels";
+import { revalidatePublicContent } from "@/lib/public-cache";
 
 export async function PATCH(
   request: Request,
@@ -33,6 +34,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Tag not found" }, { status: 404 });
   }
 
+  revalidatePublicContent({ all: true });
   return NextResponse.json(tag);
 }
 
@@ -52,5 +54,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Tag not found" }, { status: 404 });
   }
 
+  revalidatePublicContent({ all: true });
   return NextResponse.json({ ok: true });
 }
