@@ -2,7 +2,6 @@
 
 import { TZDate } from "@date-fns/tz";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { GameList } from "@/components/game-list";
 import { MonthCalendar } from "@/components/month-calendar";
 import { NightScroll } from "@/components/night-scroll";
@@ -22,19 +21,25 @@ function asGame(game: PublicGame): PublicGame {
   };
 }
 
-function HomeNightsInner({
+function readCalendarQuery() {
+  if (typeof window === "undefined") {
+    return { ym: null as string | null, d: null as string | null };
+  }
+  const search = new URLSearchParams(window.location.search);
+  return { ym: search.get("ym"), d: search.get("d") };
+}
+
+export function HomeNights({
   initialYm,
   initialGames,
   initialSelectedDay,
-  ym: urlYm,
-  d: urlDay,
 }: {
   initialYm: string;
   initialGames: PublicGame[];
   initialSelectedDay?: string;
-  ym: string | null;
-  d: string | null;
 }) {
+  const [urlYm, setUrlYm] = useState<string | null>(null);
+  const [urlDay, setUrlDay] = useState<string | null>(null);
   const requestedYm = urlYm && /^\d{4}-\d{2}$/.test(urlYm) ? urlYm : initialYm;
   const explicitDay = urlDay && /^\d{4}-\d{2}-\d{2}$/.test(urlDay) ? urlDay : undefined;
   const [gamesByYm, setGamesByYm] = useState<Record<string, PublicGame[]>>(() => ({
@@ -46,6 +51,35 @@ function HomeNightsInner({
     setSeededKey(serverKey);
     setGamesByYm((prev) => ({ ...prev, [initialYm]: initialGames.map(asGame) }));
   }
+
+  useEffect(() => {
+    function apply() {
+      const next = readCalendarQuery();
+      setUrlYm(next.ym);
+      setUrlDay(next.d);
+    }
+    apply();
+
+    const wrap = (method: "pushState" | "replaceState") => {
+      const original = history[method].bind(history);
+      history[method] = function (...args: Parameters<History["pushState"]>) {
+        const result = original(...args);
+        apply();
+        return result;
+      };
+      return () => {
+        history[method] = original;
+      };
+    };
+    const unpush = wrap("pushState");
+    const unreplace = wrap("replaceState");
+    window.addEventListener("popstate", apply);
+    return () => {
+      unpush();
+      unreplace();
+      window.removeEventListener("popstate", apply);
+    };
+  }, []);
 
   useEffect(() => {
     if (requestedYm === initialYm || gamesByYm[requestedYm]) {
@@ -120,27 +154,4 @@ function HomeNightsInner({
       </div>
     </>
   );
-}
-
-export function HomeNights(props: {
-  initialYm: string;
-  initialGames: PublicGame[];
-  initialSelectedDay?: string;
-}) {
-  const search = useSearchParams();
-  return (
-    <HomeNightsInner
-      {...props}
-      ym={search.get("ym")}
-      d={search.get("d")}
-    />
-  );
-}
-
-export function HomeNightsFallback(props: {
-  initialYm: string;
-  initialGames: PublicGame[];
-  initialSelectedDay?: string;
-}) {
-  return <HomeNightsInner {...props} ym={null} d={null} />;
 }

@@ -1,7 +1,6 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import { TrackLink } from "@/components/track-click";
-import { HomeNights, HomeNightsFallback } from "@/components/home-nights";
+import { HomeNights } from "@/components/home-nights";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { cdnUrl } from "@/lib/cdn";
 import { latestSessionDay, dayKey, parseYearMonth, yearMonthKey } from "@/lib/dates";
@@ -73,9 +72,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <Suspense fallback={<HomeNightsFallback {...nightsProps} />}>
-        <HomeNights {...nightsProps} />
-      </Suspense>
+      <HomeNights {...nightsProps} />
     </>
   );
 }

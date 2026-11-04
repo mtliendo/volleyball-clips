@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import { GuestAuthNav } from "@/components/guest-auth-nav";
 import { TrackLink } from "@/components/track-click";
@@ -8,7 +9,7 @@ import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { isAdmin } from "@/lib/roles";
 
 export function SiteHeader({ authReady }: { authReady: boolean }) {
-  const { user, isLoading } = useUser();
+  const { user } = useUser();
   const signedIn = Boolean(user);
   const admin = isAdmin(user);
 
@@ -22,7 +23,7 @@ export function SiteHeader({ authReady }: { authReady: boolean }) {
           <TrackLink href="/pricing" event={ANALYTICS_EVENTS.goProClick} className="text-muted hover:text-ink">
             Pricing
           </TrackLink>
-          {isLoading ? null : signedIn ? (
+          {signedIn ? (
             <>
               <Link href="/favorites" className="text-muted hover:text-ink">
                 Favorites
@@ -39,7 +40,9 @@ export function SiteHeader({ authReady }: { authReady: boolean }) {
               </a>
             </>
           ) : authReady ? (
-            <GuestAuthNav />
+            <Suspense fallback={null}>
+              <GuestAuthNav />
+            </Suspense>
           ) : null}
         </nav>
       </div>
