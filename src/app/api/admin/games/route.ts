@@ -4,6 +4,7 @@ import { fromDatetimeLocalValue } from "@/lib/dates";
 import { getDb } from "@/lib/db";
 import { games, type GameType } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
+import { revalidatePublicContent } from "@/lib/public-cache";
 
 const TYPES = new Set(["open_gym", "league", "tournament"]);
 
@@ -33,5 +34,6 @@ export async function POST(request: Request) {
     })
     .returning();
 
+  revalidatePublicContent({ gameId: game.id });
   return NextResponse.json(game, { status: 201 });
 }

@@ -11,6 +11,7 @@ import {
 import { isDatabaseConfigured } from "@/lib/env";
 import { isUuid } from "@/lib/ids";
 import { PIN_LABEL_COPY } from "@/lib/labels";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import { getGameWithVenue } from "@/lib/queries";
 
 const LABELS = new Set(Object.keys(PIN_LABEL_COPY));
@@ -88,5 +89,6 @@ export async function PUT(
     }
   });
 
+  revalidatePublicContent({ gameId: id });
   return NextResponse.json({ ok: true });
 }

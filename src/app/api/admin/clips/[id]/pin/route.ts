@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin";
 import { isDatabaseConfigured } from "@/lib/env";
 import { isUuid } from "@/lib/ids";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import { PinError, parsePinLabel, setClipSessionPin } from "@/lib/session-pins";
 
 export async function PUT(
@@ -24,6 +25,7 @@ export async function PUT(
   try {
     const label = parsePinLabel(body.label);
     const result = await setClipSessionPin(id, label);
+    revalidatePublicContent({ gameId: result.gameId, clipId: id });
     return NextResponse.json({ ok: true, ...result });
   } catch (cause) {
     if (cause instanceof PinError) {

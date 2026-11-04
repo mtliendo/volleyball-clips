@@ -300,6 +300,30 @@ export async function listFavoriteClips(userId: string): Promise<
   }));
 }
 
+export async function listFavoriteClipIds(userId: string): Promise<string[]> {
+  if (!isDatabaseConfigured()) return [];
+
+  const rows = await getDb()
+    .select({ clipId: favorites.clipId })
+    .from(favorites)
+    .where(eq(favorites.userId, userId));
+  return rows.map((row) => row.clipId);
+}
+
+export async function listPublicGameIds() {
+  if (!isDatabaseConfigured()) return [];
+  const rows = await getDb().select({ id: games.id }).from(games);
+  return rows.map((row) => row.id);
+}
+
+export async function listReadyWatchParams() {
+  if (!isDatabaseConfigured()) return [];
+  return getDb()
+    .select({ id: clips.gameId, clipId: clips.id })
+    .from(clips)
+    .where(eq(clips.status, "ready"));
+}
+
 export async function listRecentReadyPosters(limit = 8) {
   if (!isDatabaseConfigured()) return [];
 

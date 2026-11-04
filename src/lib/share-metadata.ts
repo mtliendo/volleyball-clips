@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cdnUrl } from "./cdn";
 import { formatGameWhen } from "./dates";
 import { GAME_TYPE_LABELS } from "./labels";
-import { getGameWithVenue, getReadyClip, listGameClips } from "./queries";
+import { getCachedGameClips, getCachedGameWithVenue } from "./public-data";
 import { OG_SIZE, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "./site";
 
 export type SessionShare = {
@@ -32,10 +32,10 @@ export function publicPosterUrl(posterKey?: string | null) {
 }
 
 export async function getSessionShare(gameId: string): Promise<SessionShare | null> {
-  const game = await getGameWithVenue(gameId);
+  const game = await getCachedGameWithVenue(gameId);
   if (!game) return null;
 
-  const clips = await listGameClips(gameId, { readyOnly: true });
+  const clips = await getCachedGameClips(gameId);
   const posterKey =
     clips.find((clip) => clip.posterKey?.startsWith("posters/"))?.posterKey ?? null;
 
@@ -53,11 +53,11 @@ export async function getClipShare(
   gameId: string,
   clipId: string,
 ): Promise<ClipShare | null> {
-  const game = await getGameWithVenue(gameId);
+  const game = await getCachedGameWithVenue(gameId);
   if (!game) return null;
 
-  const clip = await getReadyClip(clipId);
-  if (!clip || clip.gameId !== gameId) return null;
+  const clip = (await getCachedGameClips(gameId)).find((item) => item.id === clipId);
+  if (!clip) return null;
 
   return {
     id: clip.id,

@@ -62,7 +62,11 @@ export function adjacentMonth(yearMonth: Date, offset: number) {
   return addMonths(yearMonth, offset);
 }
 
-export function formatGameWhen(date: Date) {
+function asDate(date: Date | string) {
+  return date instanceof Date ? date : new Date(date);
+}
+
+export function formatGameWhen(date: Date | string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: APP_TIMEZONE,
     weekday: "short",
@@ -70,17 +74,17 @@ export function formatGameWhen(date: Date) {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(date);
+  }).format(asDate(date));
 }
 
-export function formatGameDay(date: Date) {
+export function formatGameDay(date: Date | string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: APP_TIMEZONE,
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-  }).format(date);
+  }).format(asDate(date));
 }
 
 export function formatMonthTitle(date: Date) {

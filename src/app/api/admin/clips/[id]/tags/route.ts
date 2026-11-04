@@ -4,6 +4,7 @@ import { requireAdminApi } from "@/lib/admin";
 import { getDb } from "@/lib/db";
 import { clipTags, clips, tags } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import { inArray } from "drizzle-orm";
 
 export async function PUT(
@@ -40,5 +41,6 @@ export async function PUT(
     await tx.update(clips).set({ tagsLocked: true }).where(eq(clips.id, id));
   });
 
+  revalidatePublicContent({ gameId: clip.gameId, clipId: id });
   return NextResponse.json({ ok: true, tagIds, tagsLocked: true });
 }

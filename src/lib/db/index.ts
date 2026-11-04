@@ -12,6 +12,18 @@ const globalForDb = globalThis as unknown as {
   db?: Database;
 };
 
+function withVerifyFull(connectionString: string) {
+  if (/[?&]sslmode=verify-full(?:&|$)/i.test(connectionString)) {
+    return connectionString;
+  }
+  if (/[?&]sslmode=require(?:&|$)/i.test(connectionString)) {
+    return connectionString.replace(/([?&]sslmode=)require(?=&|$)/i, "$1verify-full");
+  }
+  return connectionString.includes("?")
+    ? `${connectionString}&sslmode=verify-full`
+    : `${connectionString}?sslmode=verify-full`;
+}
+
 function createPool() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
@@ -19,7 +31,7 @@ function createPool() {
   }
 
   const pool = new Pool({
-    connectionString,
+    connectionString: withVerifyFull(connectionString),
     max: process.env.VERCEL ? 1 : 5,
   });
 

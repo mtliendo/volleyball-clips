@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { clipTags, clips, games, venues, type GameType } from "@/lib/db/schema";
 import { isDatabaseConfigured, isS3Configured } from "@/lib/env";
 import { isUuid } from "@/lib/ids";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import { deleteClipObjects } from "@/lib/s3";
 
 const TYPES = new Set(["open_gym", "league", "tournament"]);
@@ -76,6 +77,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Game not found" }, { status: 404 });
   }
 
+  revalidatePublicContent({ gameId: game.id });
   return NextResponse.json(game);
 }
 
@@ -144,5 +146,6 @@ export async function DELETE(
     await tx.delete(games).where(eq(games.id, id));
   });
 
+  revalidatePublicContent({ gameId: id });
   return NextResponse.json({ ok: true });
 }

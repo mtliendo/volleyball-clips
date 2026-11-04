@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { clips } from "@/lib/db/schema";
 import { isDatabaseConfigured } from "@/lib/env";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import {
   verifyWebhookSignature,
   type TranscodeWebhookPayload,
@@ -59,6 +60,10 @@ export async function POST(request: Request) {
 
   if (!clip) {
     return NextResponse.json({ error: "Clip not found" }, { status: 404 });
+  }
+
+  if (clip.status === "ready") {
+    revalidatePublicContent({ gameId: clip.gameId, clipId: clip.id });
   }
 
   return NextResponse.json({ ok: true, clipId: clip.id, status: clip.status });

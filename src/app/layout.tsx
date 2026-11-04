@@ -7,6 +7,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader, SiteHeaderFallback } from "@/components/site-header";
+import { isAuth0Configured } from "@/lib/env";
 import { rootMetadata } from "@/lib/share-metadata";
 import { THEME_COLOR } from "@/lib/site";
 import "./globals.css";
@@ -46,7 +47,7 @@ export default async function RootLayout({
           <SiteChrome
             header={
               <Suspense fallback={<SiteHeaderFallback />}>
-                <SiteHeader />
+                <SiteHeader authReady={isAuth0Configured()} />
               </Suspense>
             }
             footer={<SiteFooter />}

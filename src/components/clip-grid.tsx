@@ -26,6 +26,11 @@ export function ClipGrid({
 }) {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
+  const [seededRemaining, setSeededRemaining] = useState(viewer.downloadsRemaining);
+  if (seededRemaining !== viewer.downloadsRemaining) {
+    setSeededRemaining(viewer.downloadsRemaining);
+    setDownloadsRemaining(viewer.downloadsRemaining);
+  }
   const [downloadLimit, setDownloadLimit] = useState<{ nextAt: string | null } | null>(null);
 
   const filtered = useMemo(() => {

@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { clipTags, clips } from "@/lib/db/schema";
 import { isDatabaseConfigured, isS3Configured } from "@/lib/env";
 import { isUuid } from "@/lib/ids";
+import { revalidatePublicContent } from "@/lib/public-cache";
 import { deleteClipObjects } from "@/lib/s3";
 
 export async function DELETE(
@@ -64,5 +65,6 @@ export async function DELETE(
     await tx.delete(clips).where(eq(clips.id, id));
   });
 
+  revalidatePublicContent({ gameId: clip.gameId, clipId: id });
   return NextResponse.json({ ok: true });
 }

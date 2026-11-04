@@ -1,12 +1,24 @@
 import { formatGameWhen } from "@/lib/dates";
 import { GAME_TYPE_LABELS } from "@/lib/labels";
 import { renderOgCard } from "@/lib/og/render";
+import { listReadyWatchParams } from "@/lib/queries";
 import { getClipShare, publicPosterUrl } from "@/lib/share-metadata";
 import { SITE_DESCRIPTION } from "@/lib/site";
 
 export const alt = "VB POV clip";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+export const dynamic = "force-static";
+export const revalidate = 900;
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  try {
+    return await listReadyWatchParams();
+  } catch {
+    return [];
+  }
+}
 
 export default async function Image({
   params,
