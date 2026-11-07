@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/admin";
+import { deleteAdminClip } from "@/lib/admin-clip-delete";
 import { getDb } from "@/lib/db";
 import { clipTags, clips } from "@/lib/db/schema";
 import { isDatabaseConfigured, isS3Configured } from "@/lib/env";
@@ -12,59 +13,32 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireAdminApi();
-  if (error) return error;
-  if (!isDatabaseConfigured()) {
-    return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
-  }
-
   const { id } = await params;
-  if (!isUuid(id)) {
-    return NextResponse.json({ error: "Clip not found" }, { status: 404 });
-  }
-
-  const [clip] = await getDb().select().from(clips).where(eq(clips.id, id)).limit(1);
-  if (!clip) {
-    return NextResponse.json({ error: "Clip not found" }, { status: 404 });
-  }
-
-  if (!isS3Configured()) {
-    return NextResponse.json(
-      { error: "S3 is not configured; clip files cannot be deleted" },
-      { status: 503 },
-    );
-  }
-
-  let failed: { key: string; message: string }[] = [];
-  try {
-    ({ failed } = await deleteClipObjects([clip]));
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Could not delete S3 objects. Database rows were left unchanged.",
-      },
-      { status: 502 },
-    );
-  }
-
-  if (failed.length > 0) {
-    return NextResponse.json(
-      {
-        error: "Could not delete all S3 objects. Database rows were left unchanged.",
-        failed,
-      },
-      { status: 502 },
-    );
-  }
-
-  await getDb().transaction(async (tx) => {
-    await tx.delete(clipTags).where(eq(clipTags.clipId, id));
-    await tx.delete(clips).where(eq(clips.id, id));
+  const result = await deleteAdminClip(id, {
+    async authorize() {
+      const { error } = await requireAdminApi();
+      if (!error) return { ok: true };
+      if (error.status === 401) {
+        return { ok: false, status: 401, error: "Unauthorized" };
+      }
+      return { ok: false, status: 403, error: "Forbidden" };
+    },
+    isDatabaseConfigured,
+    isS3Configured,
+    isUuid,
+    async findClip(clipId) {
+      const [clip] = await getDb().select().from(clips).where(eq(clips.id, clipId)).limit(1);
+      return clip ?? null;
+    },
+    deleteClipObjects,
+    async deleteRows(clipId) {
+      await getDb().transaction(async (tx) => {
+        await tx.delete(clipTags).where(eq(clipTags.clipId, clipId));
+        await tx.delete(clips).where(eq(clips.id, clipId));
+      });
+    },
+    revalidate: revalidatePublicContent,
   });
 
-  revalidatePublicContent({ gameId: clip.gameId, clipId: id });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(result.body, { status: result.status });
 }

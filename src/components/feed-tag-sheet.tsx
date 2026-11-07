@@ -15,6 +15,7 @@ export function FeedTagSheet({
   pending,
   onClose,
   onPickPin,
+  onDeleteClip,
 }: {
   open: boolean;
   clipId: string;
@@ -25,6 +26,7 @@ export function FeedTagSheet({
   pending: boolean;
   onClose: () => void;
   onPickPin: (label: PinLabel | null) => void;
+  onDeleteClip?: () => void;
 }) {
   if (!open) {
     return null;
@@ -102,10 +104,20 @@ export function FeedTagSheet({
           </div>
         </section>
 
-        <section className="mt-6">
+        <section className="mt-6 flex flex-col gap-2">
           <Link href={editHref} className="btn btn-ghost" data-clip-edit="">
             Edit this clip
           </Link>
+          {onDeleteClip ? (
+            <button
+              type="button"
+              className="btn btn-ghost text-error"
+              data-delete-from-sheet=""
+              onClick={onDeleteClip}
+            >
+              Delete this clip
+            </button>
+          ) : null}
         </section>
       </div>
     </div>
