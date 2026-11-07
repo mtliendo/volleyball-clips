@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { requestAdminClipDelete } from "@/lib/clip-delete";
 
 export function DeleteClipButton({
   clipId,
@@ -25,10 +26,9 @@ export function DeleteClipButton({
 
     setPending(true);
     setError("");
-    const response = await fetch(`/api/admin/clips/${clipId}`, { method: "DELETE" });
-    const data = (await response.json().catch(() => ({}))) as { error?: string };
-    if (!response.ok) {
-      setError(data.error ?? "Could not delete clip");
+    const result = await requestAdminClipDelete(clipId);
+    if (!result.ok) {
+      setError(result.error);
       setPending(false);
       return;
     }

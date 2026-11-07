@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DeleteClipDialog } from "@/components/admin/delete-clip-dialog";
 import { DownloadButton, ShareDebugReadout } from "@/components/download-button";
 import { DownloadLimitWall } from "@/components/download-limit-wall";
 import { FavoriteButton } from "@/components/favorite-button";
@@ -9,6 +11,7 @@ import { FeedTagSheet } from "@/components/feed-tag-sheet";
 import { SignupWall } from "@/components/signup-wall";
 import { ANALYTICS_EVENTS, trackEvent } from "@/lib/analytics";
 import { cdnUrl } from "@/lib/cdn";
+import { removeClipAndSelectNext, requestAdminClipDelete } from "@/lib/clip-delete";
 import { mergeUtmIntoPath } from "@/lib/utm";
 import type { PinLabel } from "@/lib/db/schema";
 import type { Viewer } from "@/lib/entitlements";
@@ -162,6 +165,12 @@ export function VerticalFeed({
   initialPlayback?: Record<string, PlaybackGrant>;
   requireSignedPlayback?: boolean;
 }) {
+  const router = useRouter();
+  const [removedIds, setRemovedIds] = useState(() => new Set<string>());
+  const feedClips = useMemo(
+    () => clips.filter((clip) => !removedIds.has(clip.id)),
+    [clips, removedIds],
+  );
   const startIndex = Math.max(0, clips.findIndex((clip) => clip.id === startId));
   const [activeIndex, setActiveIndex] = useState(startIndex);
   const [soundOn, setSoundOn] = useState(false);
@@ -185,6 +194,12 @@ export function VerticalFeed({
     setPinsByClip(pinSeed(clips));
   }
   const [tagSheetOpen, setTagSheetOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const deletePendingRef = useRef(false);
+  const pendingScrollRef = useRef<number | null>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const [downloadsRemaining, setDownloadsRemaining] = useState(viewer.downloadsRemaining);
   const [seededRemaining, setSeededRemaining] = useState(viewer.downloadsRemaining);
   if (seededRemaining !== viewer.downloadsRemaining) {
@@ -202,7 +217,7 @@ export function VerticalFeed({
   const activeIndexRef = useRef(startIndex);
   const unlockedRef = useRef(false);
   const userMutedRef = useRef(false);
-  const clipsRef = useRef(clips);
+  const clipsRef = useRef(feedClips);
   const playGenRef = useRef(0);
   const playIndexRef = useRef<(index: number) => void>(() => undefined);
   const requireSignedRef = useRef(requireSignedPlayback);
@@ -211,15 +226,16 @@ export function VerticalFeed({
   const [watchNonce, setWatchNonce] = useState(0);
   const errorRetriesRef = useRef<Record<string, number>>({});
 
-  const active = clips[activeIndex];
+  const active = feedClips[activeIndex] ?? feedClips[0];
   const blocked =
     forceWall === "watch" ||
     (!viewer.watchUnlimited &&
       Boolean(active) &&
       watchState?.clipId === active?.id &&
       watchState.blocked);
+  const overlayOpen = tagSheetOpen || deleteOpen;
   const showHint =
-    hintVisible && clips.length >= 2 && !blocked && !downloadLimit && !tagSheetOpen;
+    hintVisible && feedClips.length >= 2 && !blocked && !downloadLimit && !overlayOpen;
 
   const srcForClip = useCallback((clip: PublicClip | undefined) => {
     if (!clip) return "";
@@ -320,17 +336,17 @@ export function VerticalFeed({
   }, []);
 
   useEffect(() => {
-    if (clips.length < 2 || swipeHintSeen()) return;
+    if (feedClips.length < 2 || swipeHintSeen()) return;
     const timer = window.setTimeout(() => setHintVisible(true), 0);
     return () => window.clearTimeout(timer);
-  }, [clips.length]);
+  }, [feedClips.length]);
 
   useLayoutEffect(() => {
-    clipsRef.current = clips;
+    clipsRef.current = feedClips;
     playIndexRef.current = playIndex;
     requireSignedRef.current = requireSignedPlayback;
     playbackByIdRef.current = playbackById;
-  }, [clips, playIndex, playbackById, requireSignedPlayback]);
+  }, [feedClips, playIndex, playbackById, requireSignedPlayback]);
 
   useLayoutEffect(() => {
     const root = scroller.current;
@@ -340,6 +356,18 @@ export function VerticalFeed({
       root.scrollTop = slide.offsetTop;
     }
   }, [startIndex]);
+
+  useLayoutEffect(() => {
+    const root = scroller.current;
+    if (!root || pendingScrollRef.current === null) return;
+    const targetIndex = pendingScrollRef.current;
+    pendingScrollRef.current = null;
+    const slide =
+      slides.current[targetIndex] ?? (root.children[targetIndex] as HTMLElement | undefined);
+    if (slide) {
+      root.scrollTop = slide.offsetTop;
+    }
+  }, [feedClips]);
 
   useLayoutEffect(() => {
     const player = createPlayer();
@@ -430,7 +458,7 @@ export function VerticalFeed({
       syncUrl(current.id);
     }
     return () => observer.disconnect();
-  }, [clips, playIndex, syncUrl]);
+  }, [feedClips, playIndex, syncUrl]);
 
   useEffect(() => {
     if (!active) return;
@@ -537,7 +565,7 @@ export function VerticalFeed({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (tagSheetOpen || downloadLimit) return;
+      if (overlayOpen || downloadLimit) return;
       if (event.altKey || event.ctrlKey || event.metaKey) return;
       if (isEditableTarget(event.target)) return;
 
@@ -567,7 +595,7 @@ export function VerticalFeed({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [downloadLimit, playIndex, syncUrl, tagSheetOpen]);
+  }, [downloadLimit, overlayOpen, playIndex, syncUrl]);
 
   function setSound(next: boolean) {
     const player = playerRef.current;
@@ -612,6 +640,68 @@ export function VerticalFeed({
     });
   }
 
+  function openDeleteDialog() {
+    if (!viewer.isAdmin || !active) return;
+    setTagSheetOpen(false);
+    setDeleteError("");
+    setDeleteOpen(true);
+  }
+
+  function closeDeleteDialog() {
+    if (deletePendingRef.current) return;
+    setDeleteOpen(false);
+    setDeleteError("");
+  }
+
+  async function confirmDeleteClip() {
+    if (!viewer.isAdmin || !active || deletePendingRef.current) return;
+
+    const clipId = active.id;
+    deletePendingRef.current = true;
+    setDeletePending(true);
+    setDeleteError("");
+
+    const result = await requestAdminClipDelete(clipId);
+    if (!result.ok) {
+      deletePendingRef.current = false;
+      setDeletePending(false);
+      setDeleteError(result.error);
+      return;
+    }
+
+    const { next, nextIndex } = removeClipAndSelectNext(clipsRef.current, clipId);
+    const nextPlayback = { ...playbackByIdRef.current };
+    delete nextPlayback[clipId];
+    playbackByIdRef.current = nextPlayback;
+    setPlaybackById(nextPlayback);
+
+    if (!next) {
+      playerRef.current?.pause();
+      const fallback = mergeUtmIntoPath(closeHref, window.location.search);
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current !== fallback) {
+        window.history.replaceState(window.history.state, "", fallback);
+      }
+    } else {
+      pendingScrollRef.current = nextIndex;
+      activeIndexRef.current = nextIndex;
+      setActiveIndex(nextIndex);
+      syncUrl(next.id);
+      window.requestAnimationFrame(() => playIndexRef.current(nextIndex));
+    }
+
+    setRemovedIds((prev) => {
+      const copy = new Set(prev);
+      copy.add(clipId);
+      return copy;
+    });
+    deletePendingRef.current = false;
+    setDeletePending(false);
+    setDeleteOpen(false);
+    setDeleteError("");
+    router.refresh();
+  }
+
   async function pickPin(label: PinLabel | null) {
     if (!active) return;
     const clipId = active.id;
@@ -633,9 +723,18 @@ export function VerticalFeed({
     setTagPending(false);
   }
 
-  if (clips.length === 0 || !active) {
+  useEffect(() => {
+    if (feedClips.length > 0) return;
+    const player = playerRef.current;
+    if (!player) return;
+    player.pause();
+    player.removeAttribute("src");
+    player.load();
+  }, [feedClips.length]);
+
+  if (feedClips.length === 0 || !active) {
     return (
-      <div className="feed-root grid place-items-center px-4">
+      <div className="feed-root grid place-items-center px-4" data-feed-empty="">
         <p className="text-sm text-muted">No clips in this filter.</p>
         <Link href={closeHref} className="btn btn-ghost mt-4">
           Back to the session
@@ -653,7 +752,7 @@ export function VerticalFeed({
     <div className="feed-root" data-active-clip={active.id}>
       <ShareDebugReadout />
       <div ref={scroller} className="feed-scroller">
-        {clips.map((clip, index) => {
+        {feedClips.map((clip, index) => {
           const grant = playbackById[clip.id];
           const playback = isPlaybackGrantFresh(grant)
             ? grant.playbackUrl
@@ -708,15 +807,32 @@ export function VerticalFeed({
       <div className="feed-scrim-top" />
       <div className="feed-scrim-bottom" />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-(--z-raised) flex items-start justify-between p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-(--z-raised) flex items-start justify-between gap-2 p-3">
         <Link href={closeHref} className="pointer-events-auto btn btn-ghost !min-h-10">
           Close
         </Link>
-        {activePin ? (
-          <span className="chip-spark pointer-events-none" data-pin-badge={activePin.label ?? "pinned"}>
-            {activePin.label ? PIN_LABEL_COPY[activePin.label] : "Pinned"}
-          </span>
-        ) : null}
+        <div className="pointer-events-auto flex max-w-[70%] flex-wrap items-center justify-end gap-2">
+          {activePin ? (
+            <span className="chip-spark" data-pin-badge={activePin.label ?? "pinned"}>
+              {activePin.label ? PIN_LABEL_COPY[activePin.label] : "Pinned"}
+            </span>
+          ) : null}
+          {viewer.isAdmin ? (
+            <button
+              ref={deleteButtonRef}
+              type="button"
+              className="btn btn-ghost !min-h-10 text-error"
+              data-delete-control=""
+              aria-label="Delete this clip"
+              onClick={(event) => {
+                event.stopPropagation();
+                openDeleteDialog();
+              }}
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="pointer-events-none absolute right-3 bottom-20 z-(--z-raised) flex flex-col items-end gap-3">
@@ -823,6 +939,20 @@ export function VerticalFeed({
           pending={tagPending}
           onClose={() => setTagSheetOpen(false)}
           onPickPin={(label) => void pickPin(label)}
+          onDeleteClip={openDeleteDialog}
+        />
+      ) : null}
+
+      {viewer.isAdmin ? (
+        <DeleteClipDialog
+          open={deleteOpen}
+          clip={active}
+          index={activeIndex}
+          total={feedClips.length}
+          pending={deletePending}
+          error={deleteError}
+          onCancel={closeDeleteDialog}
+          onConfirm={() => void confirmDeleteClip()}
         />
       ) : null}
     </div>
